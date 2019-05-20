@@ -3,13 +3,13 @@ title: "Data for *usensys* models"
 author: '@olugovoy'
 date: "May 4, 2019"
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: '4'
   html_document:
     highlight: tango
     toc: yes
-    toc_depth: 5
-  pdf_document:
-    toc: yes
-    toc_depth: '5'
+    toc_depth: 4
 ---
 
 ```{r setup, include=FALSE}
@@ -213,7 +213,6 @@ cleanread_xls <- function(path, sheet, range, dbl2int = T) {
   if (dbl2int) xls <- dbl2int(xls)
   xls
 }
-
 
 elc_pp <- cleanread_xls(file.path(eiadir, "eia8602017/2___Plant_Y2017.xlsx"),
                       sheet = "Plant",
