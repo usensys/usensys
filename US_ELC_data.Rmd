@@ -1,0 +1,319 @@
+---
+title: "Data for *usensys* models"
+author: '@olugovoy'
+date: "May 4, 2019"
+output:
+  html_document:
+    highlight: tango
+    toc: yes
+    toc_depth: 5
+  pdf_document:
+    toc: yes
+    toc_depth: '5'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  results = "hide"
+)
+# knitr::opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=TRUE)
+
+library(readxl)
+library(stringr)
+library(rvest)
+library(sp)
+library(tidyverse)
+
+
+```
+
+# Obtaining EIA data 
+## By states
+
+Downloading data from <https://www.eia.gov/electricity/data/state/>.  
+
+Version:  
+Final annual data for 2017   
+  Release Date: October 12, 2018  
+  Next Release Date: November 2019  
+  Re-released: January 15, 2019 Revision/Corrections <https://www.eia.gov/electricity/data/state/correction.php>  
+
+```{r EIA_data_annual_&_monthly}
+eiadir <- file.path(getwd(), "data/EIA")
+if(!dir.exists(eiadir)) dir.create(eiadir, recursive = T)
+
+{www <- list()
+# Annual data ####
+# 1990 - 2017	Net Generation by State by Type of Producer by Energy Source (EIA-906, EIA-920, and EIA-923)
+www$annual_generation_state.xls <- "https://www.eia.gov/electricity/data/state/annual_generation_state.xls"
+# 1990 - 2017	Fossil Fuel Consumption for Electricity Generation by Year, Industry Type and State (EIA-906, EIA-920, and EIA-923)2
+www$annual_consumption_state.xls <- "https://www.eia.gov/electricity/data/state/annual_consumption_state.xls"
+# 1990 - 2017	Existing Nameplate and Net Summer Capacity by Energy Source, Producer Type and State (EIA-860)1, 3
+www$existcapacity_annual.xlsx <- "https://www.eia.gov/electricity/data/state/existcapacity_annual.xlsx"
+# 2018 - 2022	Proposed Nameplate and Net Summer Capacity by Year, Energy Source, and State (EIA-860)1
+www$plancapacity_annual.xlsx <- "https://www.eia.gov/electricity/data/state/plancapacity_annual.xlsx"
+# 1990 - 2017	U.S. Electric Power Industry Estimated Emissions by State (EIA-767, EIA-906, EIA-920, and EIA-923)4
+www$emission_annual.xls <- "https://www.eia.gov/electricity/data/state/emission_annual.xls"
+# 1990 - 2017	Average Price by State by Provider (EIA-861)5
+www$avgprice_annual.xlsx <- "https://www.eia.gov/electricity/data/state/avgprice_annual.xlsx"
+# 1990 - 2017	Number of Retail Customers by State by Sector (EIA-861)5
+www$customers_annual.xlsx <- "https://www.eia.gov/electricity/data/state/customers_annual.xlsx"
+# 1990 - 2017	Retail Sales of Electricity by State by Sector by Provider (EIA-861)5
+www$sales_annual.xlsx <- "https://www.eia.gov/electricity/data/state/sales_annual.xlsx"
+# 1990 - 2017	Revenue from Retail Sales of Electricity by State by Sector by Provider (EIA-861)5
+www$revenue_annual.xlsx <- "https://www.eia.gov/electricity/data/state/revenue_annual.xlsx"
+# 2001 - 2003	Financial Data on Publicly Owned Electric Utilities with Generation Facilities by State (EIA-412)6	
+www$financewgen_annual.xls <- "https://www.eia.gov/electricity/data/state/financewgen_annual.xls"
+# 2001 - 2003	Financial Data on Publicly Owned Electric Utilities without Generation Facilities by State (EIA-412)6	
+www$financewogen_annual.xls <- "https://www.eia.gov/electricity/data/state/financewogen_annual.xls"
+
+# Monthly data from Electric Power Monthly ####
+# 2001 - Present	Net Generation by State by Type of Producer by Energy Source1	
+www$generation_monthly.xlsx <- "https://www.eia.gov/electricity/data/state/generation_monthly.xlsx"
+# 2001 - Present	Fossil Fuel Consumption for Electricity Generation by Year, Industry Type and State2	
+www$consumption_monthly.xlsx <- "https://www.eia.gov/electricity/data/state/consumption_monthly.xlsx"}
+
+download <- function(url, path = eiadir, overwrite = FALSE) {
+  fl <- file.path(path, basename(url))
+  if(file.exists(fl) & !overwrite) {
+    # message("File '", basename(url), "' already exists.")
+    return("exists")
+  } else {
+    download.file(url = url, destfile = fl, mode = "wb") 
+    if(file.exists(fl)) {
+      return("downloaded")
+    } else {
+      return("download failed")
+    }
+  }
+}
+
+sapply(www, download, overwrite = F)
+
+# Annual capacity
+elc_cap <- read_excel(file.path(eiadir, basename(www$existcapacity_annual.xlsx)),
+                      sheet = "Existing Capacity",
+                      range = "A1:H42756")
+elc_cap
+       
+# Fuels consumption for electricity generation by months
+fue4elc <- read_excel(file.path(eiadir, basename(www$consumption_monthly.xlsx)),
+                      sheet = "2017_Preliminary",
+                      range = "A5:F9391")
+fue4elc
+
+# Electricity generation by months and energy type
+elc_gen <- read_excel(file.path(eiadir, basename(www$generation_monthly.xlsx)),
+                      sheet = "2017_Preliminary",
+                      range = "A5:F24880")
+elc_gen
+
+elc_emis <- read_excel(file.path(eiadir, basename(www$emission_annual.xls)),
+                      sheet = "State Emissions",
+                      range = "A1:G24880")
+elc_emis
+
+save(elc_cap, fue4elc, elc_gen, elc_emis, file = file.path(eiadir, "eia_raw.RData"))
+
+```
+
+
+## Power plants & generator level data  
+### Form EIA-860 detailed data with previous form data (EIA-860A/860B  
+<https://www.eia.gov/electricity/data/eia860/>  
+  Release Date: September 13, 2018, Final 2017 data   
+  Next release date: June 2019, Early release 2018 data   
+The survey Form EIA-860 collects generator-level specific information about existing and planned generators and associated environmental equipment at electric power plants with 1 megawatt or greater of combined nameplate capacity.  
+
+### Form EIA-923 detailed data with previous form data (EIA-906/920)  
+<https://www.eia.gov/electricity/data/eia923/>  
+  Monthly (M) release date: April 29, 2019 for February 2019 data   
+  Next monthly release: End of May 2019 (March 2019 data)  
+  Final 2017 data: September 20, 2018  
+  Re-released: March 6, 2019  Corrections/Revisions  
+Update notice: The moisture content and chlorine content for coal receipts were added to the EIA-923 preliminary data file.  
+
+The survey Form EIA-923 collects detailed electric power data -- monthly and annually -- on electricity generation, fuel consumption, fossil fuel stocks, and receipts at the power plant and prime mover level. Specific survey information provided:  
+* Schedule 2 - fuel receipts and costs  
+* Schedules 3A & 5A - generator data including generation, fuel consumption and stocks  
+* Schedule 4 - fossil fuel stocks  
+* Schedules 6 & 7 - non-utility source and disposition of electricity  
+* Schedules 8A-F - environmental data  
+* Monthly data (M) - over 1,800 plants from the monthly survey  
+* Annual final data - approximately 2,350 monthly plants + 5,790 plants from the annual survey  
+
+Summary data  
+<https://www.eia.gov/electricity/data.php#gencapacity>  
+
+### Scraping & downloading all zip and xls files of the forms
+(Another option is EIA's API <https://www.eia.gov/opendata/register.php>, though it is not clear yet if the API has all the the data in xls, need to check.)  
+```{r EIA_860_923_forms}
+scrap <- function(weblink, filepatern = "([a-zA-Z0-9_]+.zip)|([a-zA-Z0-9_]+.xls)$", aslist = T) {
+  # library(rvest)
+  links <- read_html(weblink) %>%
+    html_nodes("a") %>%
+    html_attr('href') 
+  links <- links[grepl(filepatern, links)]
+  links <- paste0(weblink, links)
+  if (aslist) {
+    lnames <- str_extract(links, filepatern)
+    stopifnot(length(links) == length(lnames))
+    links <- as.list(links)
+    names(links) <- lnames
+  }
+  links
+}
+
+www <- scrap("https://www.eia.gov/electricity/data/eia860/")
+www <- c(www, scrap("https://www.eia.gov/electricity/data/eia923/"))
+sapply(www, download, overwrite = F)
+
+fls <- names(www)
+
+# Select data for 2017
+fls <- fls[grepl("2017", fls)]
+zz <- grepl("zip$", fls) # select zip-files for unzipping
+# Unzip files
+for (f in fls[zz]) {
+  dirname <- gsub("\\.zip$", "", f)
+  dirname <- file.path(eiadir, dirname)
+  if (!dir.exists(dirname)) dir.create(dirname)
+  unzip(file.path(eiadir, f), exdir = dirname, overwrite = T)
+}
+
+# dirname <- gsub("\\.zip$", "", fls[1])
+dbl2int <- function(x) {
+  # coersing unneccesary doubles into integers
+  stopifnot(any(class(x) == "data.frame"))
+  ii <- sapply(x, is.double)
+  # browser()
+  for (i in (1:dim(x)[2])[ii]) {
+    if (sum(x[[i]] - floor(x[[i]]), na.rm = T) == 0) x[[i]] <- as.integer(x[[i]])
+  }
+  x
+}
+```
+
+Reading xls(x) files
+```{r}
+cleanread_xls <- function(path, sheet, range, dbl2int = T) {
+  # Clean read withoug logical values
+  xls <- read_excel(path, sheet, range)
+  col_type <- sapply(xls, class)
+  # browser()
+  if (any(col_type == "logical")) { # reimport
+    message("Rereading the xls-file, forcing out logical columns.")
+    col_type[col_type == "character"] <- "text"
+    col_type[col_type == "logical"] <- "text"
+    xls <- read_excel(path, sheet, range, col_types = col_type)
+  }
+  if (dbl2int) xls <- dbl2int(xls)
+  xls
+}
+
+
+elc_pp <- cleanread_xls(file.path(eiadir, "eia8602017/2___Plant_Y2017.xlsx"),
+                      sheet = "Plant",
+                      range = "A2:AP10129")
+col_type <- sapply(elc_pp, class)
+unique(col_type)
+```
+
+```{r, results="markdown", fig.cap="Mapping all power plants."}
+load("data/maps/usa49reg.RData")
+plot(usa49reg)
+points(elc_pp$Longitude, elc_pp$Latitude, pch = 16, col = "blue", cex = .3)
+save(elc_pp, file = file.path(eiadir, "elc_pp.RData"))
+
+```
+
+
+```{r}
+# continue..
+elc_gn <- cleanread_xls(file.path(eiadir, "eia8602017/3_1_Generator_Y2017.xlsx"),
+                      sheet = "Operable",
+                      range = "A2:BU21439")
+col_type <- sapply(elc_gn, class)
+unique(col_type)
+elc_gn
+
+
+elc_genfue <- cleanread_xls(file.path(eiadir, "f923_2017/EIA923_Schedules_2_3_4_5_M_12_2017_Final_Revision.xlsx"),
+                      sheet = "Page 1 Generation and Fuel Data",
+                      range = "A6:CS13385")
+elc_genfue
+names(elc_genfue)
+col_type <- sapply(elc_genfue, class)
+unique(col_type)
+
+# Split annual and monthly data
+month_cols <- grepl(paste(month.name, collapse = "|"), names(elc_genfue))
+summary(month_cols)
+
+elc_genfue_y <- elc_genfue[, !month_cols]
+dim(elc_genfue_y)
+
+jj <- grepl("(Plant.id)|(YEAR)", names(elc_genfue), ignore.case = T)
+elc_genfue_m <- bind_cols(elc_genfue[, which(jj)], elc_genfue[, month_cols])
+dim(elc_genfue_m)
+
+# reshape monthly data
+aa <- gather(elc_genfue_m, key = "key", value = "value", -`Plant Id`, -YEAR)
+aa$variable <- str_extract(aa$key, "^[a-zA-Z0-9_]+")
+unique(aa$variable)
+aa$month <- str_extract(aa$key, "[a-zA-Z0-9_]+$")
+unique(aa$month)
+
+elc_genfue_m <- select(aa, `Plant Id`, YEAR, month, variable, value)
+
+elc_genfue <- left_join(elc_genfue_m, select(elc_genfue_y, -starts_with("Reserved")))
+
+clean_names <- function(x) {
+  nx <- names(x) %>%
+    str_replace_all("\r\n", "_") %>%
+    str_replace_all("\r", "_") %>%
+    str_replace_all("\n", "_") %>%
+    str_replace_all(" ", "_") %>%
+    str_replace_all("__", "_")
+  names(x) <- nx
+  x
+}
+
+elc_genfue <- clean_names(elc_genfue)
+names(elc_genfue)
+
+```
+
+
+### Processing plant-level data
+```{r, eval=FALSE}
+# Fuels
+elc_genfue_y <- clean_names(elc_genfue_y)
+names(elc_genfue_y)
+
+unique(elc_genfue_y$Reported_Fuel_Type_Code)
+unique(elc_genfue_y$AER_Fuel_Type_Code)
+
+unique(elc_gn$Technology)
+elc_gn <- clean_names(elc_gn)
+names(elc_gn)
+
+aa <- elc_gn %>% group_by(Technology, State) %>%
+        summarise(cap = sum(`Nameplate_Capacity_(MW)`))
+
+summary(aa)
+sum(aa$cap)/1e3
+
+(unique(aa$Technology))
+
+
+```
+
+# tbc  
+...  
+
+
+
