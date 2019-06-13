@@ -34,3 +34,14 @@ vignettes/*.pdf
 
 # Shiny token, see https://shiny.rstudio.com/articles/shinyapps.html
 rsconnect/
+
+data/EIA
+*.xls*
+*.zip
+*.Rproj
+*.html
+usa_maps.R
+.gitignore
+tmp
+US_ELC_data_files
+

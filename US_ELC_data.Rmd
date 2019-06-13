@@ -1,7 +1,7 @@
 ---
 title: "Data for *usensys* models"
 author: '@olugovoy'
-date: "May 4, 2019"
+date: "June 13, 2019"
 output:
   pdf_document:
     toc: yes
@@ -276,7 +276,11 @@ clean_names <- function(x) {
     str_replace_all("\r", "_") %>%
     str_replace_all("\n", "_") %>%
     str_replace_all(" ", "_") %>%
-    str_replace_all("__", "_")
+    str_replace_all("__", "_") %>%
+    str_replace_all("\\$", "USD") %>%
+    str_replace_all("/", "_") %>%
+    str_replace_all("\\(", "") %>%
+    str_replace_all("\\)", "")
   names(x) <- nx
   x
 }
@@ -310,6 +314,130 @@ sum(aa$cap)/1e3
 
 
 ```
+
+# EPA data
+
+## EPA's Power Sector Modeling Platform v6 - November 2018 Reference Case
+
+"March 21, 2019 - EPA is making the latest power sector modeling platform available, including the associated input data and modeling assumptions, outputs, and documentation." <https://www.epa.gov/airmarkets/documentation-epas-power-sector-modeling-platform-v6-november-2018-reference-case>
+Accessed: June 13, 2019
+
+### Get IPM data files
+```{r}
+epadir <- file.path(getwd(), "data/EPA")
+ipmdir <- file.path(epadir, "IPM")
+if(!dir.exists(ipmdir)) dir.create(ipmdir, recursive = T)
+
+ipmweb <- "https://www.epa.gov/airmarkets/documentation-epas-power-sector-modeling-platform-v6-november-2018-reference-case"
+
+scrap_ipm <- function(weblink, filepatern = "([a-zA-Z0-9_]+.zip)|([a-zA-Z0-9_]+.xls(|x))$", aslist = T) {
+  # library(rvest)
+  links <- read_html(weblink) %>%
+    html_nodes("body") %>% html_nodes("section") %>% 
+    html_nodes("div") %>% html_nodes("div") %>% 
+    html_nodes("div") %>% html_nodes("ul") %>% 
+    html_nodes("li") %>% html_nodes("ul") %>% 
+    html_nodes("li") %>% html_nodes('span') %>% 
+    html_nodes('a') %>% html_attr('href') 
+  links <- links[grepl(filepatern, links)]
+  links <- paste0("https://www.epa.gov", links)
+  if (aslist) {
+    lnames <- str_extract(links, filepatern)
+    stopifnot(length(links) == length(lnames))
+    links <- as.list(links)
+    names(links) <- lnames
+  }
+  links
+}
+www <- scrap_ipm(ipmweb)
+sapply(www, download, overwrite = F, path = ipmdir)
+
+```
+... 
+
+### Coal
+```{r read_coal_data}
+# Documentation
+download(url = "https://www.epa.gov/sites/production/files/2019-03/documents/chapter_7.pdf", 
+         path = ipmdir, overwrite = F)
+
+
+# Read coal supply data
+coa_sup <- cleanread_xls(file.path(ipmdir, "table_7-26_coal_supply_curves_in_epa_platform_v6.xlsx"),
+                      sheet = "Table 7-26 Coal",
+                      range = "B4:I9002")
+col_type <- sapply(coa_sup, class)
+unique(col_type)
+
+coa_sup <- clean_names(coa_sup)
+names(coa_sup)
+coa_sup
+
+unique(coa_sup$Coal_Grade)
+unique(coa_sup$Coal_Supply_Region)
+unique(coa_sup$Year)
+
+# Coal type
+coa_sup$Coal_Type <- substr(coa_sup$Coal_Grade, 1, 1)
+unique(coa_sup$Coal_Type)
+
+# Aggregate by coal types
+coa_sup_agg <- coa_sup %>%
+  group_by(Year, Coal_Type, Coal_Supply_Region) %>%
+  summarise(
+    Heat_Content_MMBtu_Ton = mean(Heat_Content_MMBtu_Ton, na.rm = T),
+    Cost_of_Production_2016USD_Ton = 
+      weighted.mean(Cost_of_Production_2016USD_Ton, 
+                    Coal_Production_Million_Tons_Year, na.rm = T),
+    Coal_Production_Million_Tons_Year = sum(Coal_Production_Million_Tons_Year, na.rm = T),
+    Coal_Reserves_Million_Tons = sum(Coal_Reserves_Million_Tons, na.rm = T)
+  )
+
+coa_type_names <- c(B = "Bituminous", S = "Subbituminous", L = "Lignite")
+coa_sup_agg$Coal_Type_Long <- plyr::revalue(coa_sup_agg$Coal_Type, coa_type_names)
+# write_csv(coa_sup_agg, path = "tmp/coa_sup_agg.csv")
+write_tsv(coa_sup_agg, path = "tmp/coa_sup_agg.tab")
+
+```
+
+### Gas
+```{r read_gas_Data}
+download(url = "https://www.epa.gov/sites/production/files/2019-03/documents/chapter_8.pdf", 
+         path = ipmdir, overwrite = F)
+
+# Read gas supply curves data
+gas_sup_curves <- cleanread_xls(
+  file.path(ipmdir, "table_8-5_natural_gas_supply_curves_for_epa_platform_v6.xlsx"),
+  sheet = 1,
+  range = "B4:D484")
+
+gas_sup_curves <- clean_names(gas_sup_curves)
+
+# Aggregated supply with average prices
+gas_sup_avr <- gas_sup_curves %>%
+  group_by(Year) %>%
+  summarise(Price_2016USD = weighted.mean(Price_2016USD, Natural_Gas_Supply_to_Power_Sector_Quads),
+            Natural_Gas_Supply_to_Power_Sector_Quads = sum(Natural_Gas_Supply_to_Power_Sector_Quads))
+
+# Read basis data
+gas_sup_basis <- cleanread_xls(
+  file.path(ipmdir, "table_8-4_natural_gas_basis_for_epa_platform_v6.xlsx"),
+  sheet = 1,
+  range = "B4:F596")
+gas_sup_basis <- clean_names(gas_sup_basis)
+
+all(unique(gas_sup_basis$Year) == unique(gas_sup_avr$Year)) # Check
+
+# Merge with prices
+gas_sup_byreg <- full_join(gas_sup_basis, gas_sup_avr)
+
+write_tsv(gas_sup_avr, path = "tmp/gas_sup_avr.tab")
+write_tsv(gas_sup_byreg, path = "tmp/gas_sup_byreg.tab")
+
+
+```
+
+
 
 # tbc  
 ...  
