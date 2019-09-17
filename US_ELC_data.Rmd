@@ -30,6 +30,10 @@ library(tidyverse)
 
 ```
 
+# Info
+
+The purpose of the code below is to acquire and preprocess US electric power sector data from EIA, EPA, and other sources. The final processed data, which is required to run USENSYS model, is stored in the '/data' directory in '.RData' format in the model working directory. It is not required to run scripts in this file to be able to run all the versions of USENSYS, available on on GitHub. The code below is provided for reference, and in order to be able to change the aggregation procedure.
+
 # Obtaining EIA data 
 ## By states
 
@@ -123,7 +127,7 @@ save(elc_cap, fue4elc, elc_gen, elc_emis, file = file.path(eiadir, "eia_raw.RDat
 
 ## Power plants & generator level data  
 ### Form EIA-860 detailed data with previous form data (EIA-860A/860B  
-<https://www.eia.gov/electricity/data/eia860/>  
+<https://www.eia.gov/electricity/data/eia860/> 
   Release Date: September 13, 2018, Final 2017 data   
   Next release date: June 2019, Early release 2018 data   
 The survey Form EIA-860 collects generator-level specific information about existing and planned generators and associated environmental equipment at electric power plants with 1 megawatt or greater of combined nameplate capacity.  
@@ -195,12 +199,42 @@ dbl2int <- function(x) {
   }
   x
 }
+
+YN2binary <- function(x) {
+  # coersing columnds with Y or N data into logical
+  stopifnot(any(class(x) == "data.frame"))
+  ii <- sapply(x, is.character)
+  # browser()
+  for (i in (1:dim(x)[2])[ii]) {
+    # Check values
+    uval <- unique(x[[i]])
+    if (length(uval) <= 4) {
+      if (all(toupper(uval) %in% c("N","Y","X",NA))) {
+        # browser()
+        newx <- rep(NA, length(x[[i]]))
+        newx[x[[i]] == "Y"] <- TRUE
+        newx[x[[i]] == "N"] <- FALSE
+        newx[x[[i]] == "X"] <- NA
+        x[i] <- as.logical(newx)
+      }
+    }
+  }
+  x
+}
+
 ```
 
-Reading xls(x) files
+Reading xls(x) files  
+Note: reasing from Excel files should be supervised and adjusted in case of any updates of the files on EIA website. Also may not work as expected on some OS/platforms.
 ```{r}
-cleanread_xls <- function(path, sheet, range, dbl2int = T) {
-  # Clean read withoug logical values
+cleanread_xls <- function(path, sheet, range, dbl2int = T, YNasBinary = T) {
+  # It was obcerved, that original `read_excel` function may confuse data formats.
+  # The 'cleanread_xls' function tries to fix this importing problem by
+  # checking if any columns have been (mistakenly) imported as binary variables,
+  # redeading the data with forced format.
+  # Additional options/parameters:
+  # dbl2int - convert numeric columns with no decimal part into integer
+  # YNasBinary - convert columns with only "Y", "N", and <NA> values into logical
   xls <- read_excel(path, sheet, range)
   col_type <- sapply(xls, class)
   # browser()
@@ -211,6 +245,7 @@ cleanread_xls <- function(path, sheet, range, dbl2int = T) {
     xls <- read_excel(path, sheet, range, col_types = col_type)
   }
   if (dbl2int) xls <- dbl2int(xls)
+  if (YNasBinary) xls <- YN2binary(xls)
   xls
 }
 
@@ -219,6 +254,9 @@ elc_pp <- cleanread_xls(file.path(eiadir, "eia8602017/2___Plant_Y2017.xlsx"),
                       range = "A2:AP10129")
 col_type <- sapply(elc_pp, class)
 unique(col_type)
+names(elc_pp)
+unique(elc_pp$`Liquefied Natural Gas Storage`)
+
 ```
 
 ```{r, results="markdown", fig.cap="Mapping all power plants."}
@@ -238,7 +276,7 @@ elc_gn <- cleanread_xls(file.path(eiadir, "eia8602017/3_1_Generator_Y2017.xlsx")
 col_type <- sapply(elc_gn, class)
 unique(col_type)
 elc_gn
-
+names(elc_gn)
 
 elc_genfue <- cleanread_xls(file.path(eiadir, "f923_2017/EIA923_Schedules_2_3_4_5_M_12_2017_Final_Revision.xlsx"),
                       sheet = "Page 1 Generation and Fuel Data",
@@ -271,6 +309,7 @@ elc_genfue_m <- select(aa, `Plant Id`, YEAR, month, variable, value)
 elc_genfue <- left_join(elc_genfue_m, select(elc_genfue_y, -starts_with("Reserved")))
 
 clean_names <- function(x) {
+  # Replace special caracters in names of the data columns
   nx <- names(x) %>%
     str_replace_all("\r\n", "_") %>%
     str_replace_all("\r", "_") %>%
@@ -279,6 +318,7 @@ clean_names <- function(x) {
     str_replace_all("__", "_") %>%
     str_replace_all("\\$", "USD") %>%
     str_replace_all("/", "_") %>%
+    str_replace_all("\\?", "") %>%
     str_replace_all("\\(", "") %>%
     str_replace_all("\\)", "")
   names(x) <- nx
@@ -305,7 +345,7 @@ elc_gn <- clean_names(elc_gn)
 names(elc_gn)
 
 aa <- elc_gn %>% group_by(Technology, State) %>%
-        summarise(cap = sum(`Nameplate_Capacity_(MW)`))
+        summarise(cap = sum(`Nameplate_Capacity_MW`))
 
 summary(aa)
 sum(aa$cap)/1e3
@@ -326,6 +366,8 @@ Accessed: June 13, 2019
 ```{r}
 epadir <- file.path(getwd(), "data/EPA")
 ipmdir <- file.path(epadir, "IPM")
+# needsdir <- file.path(epadir, "IPM")
+
 if(!dir.exists(ipmdir)) dir.create(ipmdir, recursive = T)
 
 ipmweb <- "https://www.epa.gov/airmarkets/documentation-epas-power-sector-modeling-platform-v6-november-2018-reference-case"
@@ -353,7 +395,7 @@ www <- scrap_ipm(ipmweb)
 sapply(www, download, overwrite = F, path = ipmdir)
 
 ```
-... 
+
 
 ### Coal
 ```{r read_coal_data}
@@ -430,6 +472,7 @@ all(unique(gas_sup_basis$Year) == unique(gas_sup_avr$Year)) # Check
 
 # Merge with prices
 gas_sup_byreg <- full_join(gas_sup_basis, gas_sup_avr)
+unique(gas_sup_byreg$IPM_Region)
 
 write_tsv(gas_sup_avr, path = "tmp/gas_sup_avr.tab")
 write_tsv(gas_sup_byreg, path = "tmp/gas_sup_byreg.tab")
@@ -438,9 +481,57 @@ write_tsv(gas_sup_byreg, path = "tmp/gas_sup_byreg.tab")
 ```
 
 
+### NEEDS v6 Database
+National Electric Energy Data System (NEEDS) v6
+<https://www.epa.gov/airmarkets/national-electric-energy-data-system-needs-v6>
+Accessed: September 14, 2019
 
-# tbc  
-...  
+The National Electric Energy Data System or “NEEDS” database contains the generation unit records used to construct the "model" plants that represent existing and planned/committed units in EPA modeling applications of IPM. NEEDS includes basic geographic, operating, air emissions, and other data on these generating units. NEEDS v6 is a complete bottom-up update for EPA's new power sector modeling platform v6.  For a description of the sources used in preparing NEEDS v6, see Documentation, Chapter 4: Generating Resources.
 
+
+```{r}
+# needsweb <- "https://www.epa.gov/airmarkets/national-electric-energy-data-system-needs-v6"
+
+# NEEDS v6 Database(4 MB)  (rev: 5-31-2019)
+download(url = "https://www.epa.gov/sites/production/files/2019-06/needs_v6_may_2019_reference_case.xlsx", 
+         path = ipmdir, overwrite = F)
+
+
+# Comment and Change Log(88 K) (rev: 5-31-2019)
+
+# NEEDS v6 Database(3 MB)  (rev: 11-30-2018)
+download(url = "https://www.epa.gov/sites/production/files/2019-03/needs_v6_november_2018_reference_case_0.xlsx", 
+         path = ipmdir, overwrite = F)
+
+
+# Incremental Documentation for NOx Rates in NEEDS v6(3 pp, 44 K) (9-14-2018)
+
+# NEEDS v6 Database(3 MB) (rev: 5-30-2018)
+
+
+scrap_needs <- function(weblink, filepatern = "([a-zA-Z0-9_]+.zip)|([a-zA-Z0-9_]+.xls(|x))$", aslist = T) {
+  # library(rvest)
+  links <- read_html(weblink) %>%
+    html_nodes("body") %>% html_nodes("section") %>% 
+    html_nodes("div") %>% html_nodes("div") %>% 
+    html_nodes("div") %>% html_nodes("ul") %>% 
+    html_nodes("li") %>% html_nodes("ul") %>% 
+    html_nodes("li") %>% html_nodes('span') %>% 
+    html_nodes('a') %>% html_attr('href') 
+  links <- links[grepl(filepatern, links)]
+  links <- paste0("https://www.epa.gov", links)
+  if (aslist) {
+    lnames <- str_extract(links, filepatern)
+    stopifnot(length(links) == length(lnames))
+    links <- as.list(links)
+    names(links) <- lnames
+  }
+  links
+}
+www <- scrap_ipm(needsweb)
+sapply(www, download, overwrite = F, path = ipmdir)
+
+
+```
 
 

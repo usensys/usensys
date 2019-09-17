@@ -18,7 +18,7 @@
 .Rproj.user/
 
 # produced vignettes
-vignettes/*.html
+# vignettes/*.html
 vignettes/*.pdf
 
 # OAuth2 token, see https://github.com/hadley/httr/releases/tag/v0.3
@@ -35,7 +35,7 @@ vignettes/*.pdf
 # Shiny token, see https://shiny.rstudio.com/articles/shinyapps.html
 rsconnect/
 
-data/EIA
+data/_*
 *.xls*
 *.zip
 *.Rproj
@@ -44,4 +44,9 @@ usa_maps.R
 .gitignore
 tmp
 US_ELC_data_files
+USA_ELC_R49_*
+solwork/
+fig/
+data/*.pdf
+data/EPA/IPM/*.pdf
 
