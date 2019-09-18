@@ -794,12 +794,13 @@ STGELCD <- newStorage(
 ```{r Trade_bidirect_UHV_INV}
 # Propose trade matrix between regions
 {
-if (F) { 
+if (T) { 
   # Load trade matrix from your file
   trd_xl <- readxl::read_excel("data/trade_matrix01.xlsx",
                                range = "A1:AX50")
 
   trd_nbr <- as.matrix(trd_xl[,-1])
+  trd_nbr[lower.tri(trd_nbr)] <- NA
   rownames(trd_nbr) <- trd_xl$region
 } else { 
   # Or create trade matrix for all neighbour regions
@@ -1114,9 +1115,9 @@ execute_unload 'USENSYS_ELC_RENBAL.gdx';"
 
 # Workflow to solve the model (recommended for large models):
 # 1. Interpolation of parameters
-scen_REN <- interpolate(mdl, name = "RENBAL1")
+scen_REN <- interpolate(mdl, name = "RENBAL")
 # 2. Writing the model code and data in folder
-write_model(scen_REN, tmp.dir = "solwork/RENBAL1", solver = "GAMS")
+write_model(scen_REN, tmp.dir = "solwork/RENBAL", solver = "GAMS")
 # 3. Solving the model
 # Alterntively, run GAMS directly in the model folder: 'gams mdl'
 solve_model(tmp.dir = "solwork/RENBAL1")
