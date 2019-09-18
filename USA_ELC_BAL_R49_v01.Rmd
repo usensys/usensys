@@ -789,9 +789,158 @@ STGELCD <- newStorage(
 
 ```
 
-# Interregional UHV electrical grid
+# Interregional ELC electrical grid (simplified)
 
-```{r Trade_bidirect_UHV_INV}
+```{r Trade_routes_ELC, eval=TRUE}
+# Propose trade matrix between regions
+{
+if (T) { 
+  # Load trade matrix from your file
+  trd_xl <- readxl::read_excel("data/trade_matrix01.xlsx",
+                               range = "A1:AX50")
+  # For bidirectional trade only, keep one direction
+  # trd_nbr <- as.matrix(trd_xl[,-1])
+  rownames(trd_nbr) <- trd_xl$region
+} else { 
+  # Or create trade matrix for all neighbour regions
+  trd_nbr <- matrix(rep(NA, nreg_in_gis*nreg_in_gis), 
+                    nrow = nreg_in_gis, 
+                    dimnames = list(reg_names_in_gis, reg_names_in_gis))
+  head(trd_nbr)
+  
+  for (i in 1:length(reg_names)) {
+    trd_nbr[i, nbr[[i]]] <- 1
+    trd_nbr[nbr[[i]], i] <- 1
+  }
+  dim(trd_nbr)
+  summary(!is.na(c(trd_nbr)))
+  ii <- reg_names_in_gis %in% reg_names
+  trd_nbr <- trd_nbr[ii, ii]
+  dim(trd_nbr)
+  # For bidirectional trade only, keep one direction
+  # trd_nbr[lower.tri(trd_nbr)] <- NA
+  summary(!is.na(c(trd_nbr)))
+}
+head(trd_nbr)
+# write.csv(trd_nbr, file = "data/trade_matrix.csv")
+trd_nbr[trd_nbr == 0] <- NA
+
+# Convert the matrix to data.frame (table) format
+trd_dt <- as.data.frame.table(trd_nbr, stringsAsFactors = F)
+trd_dt <- trd_dt[!is.na(trd_dt$Freq),]
+head(trd_dt)
+dim(trd_dt)
+trd_dt <- dplyr::distinct(trd_dt)
+dim(trd_dt)
+names(trd_dt) <- c("src", "dst", "trd")
+head(trd_dt)
+
+# Map region flows
+trd_map <- left_join(trd_dt, reg_centers[,1:3], by = c("src" = "region"))
+trd_map <- left_join(trd_map, reg_centers[,1:3], by = c("dst" = "region"))
+trd_map <- trd_map %>% 
+  rename(xsrc = x.x, ysrc = y.x,
+         xdst = x.y, ydst = y.y)
+trd_map <- as_tibble(trd_map)
+
+# a <- value
+trd_flows_map <-
+ggplot(data = usa49r) + 
+    geom_polygon(aes(x = long, y = lat, group = group), fill = "wheat", 
+                 colour = "white", alpha = 1, size = .5) + # aes fill = id, 
+    coord_fixed(1.3) +
+    guides(fill=FALSE) +  # do this to leave off the color legend
+    theme_void() + labs(title = "Open interregional electricity trade routes (long distance grid)")  + 
+    theme(plot.title = element_text(hjust = 0.5), 
+          plot.subtitle = element_text(hjust = 0.5)) +
+    geom_segment(aes(x=xsrc, y=ysrc, xend=xdst, yend=ydst), 
+                 data = trd_map, inherit.aes = FALSE, size = 5, 
+                 alpha = 1, colour = "grey", lineend = "round", show.legend = T) +
+    geom_point(data = reg_centers, aes(x, y), colour = "red") +
+    geom_segment(aes(x=xsrc, y=ysrc, xend=xdst, yend=ydst), 
+                 data = trd_map, inherit.aes = FALSE, size = .1, 
+             # arrow = arrow(type = "closed", angle = 15, 
+             #               length = unit(0.15, "inches")),
+             colour = "darkgrey", alpha = 1, 
+             lineend = "butt", linejoin = "mitre", show.legend = T) # , name = "Trade, PJ"
+trd_flows_map
+# ggsave("fig/trd_flows_map.pdf", trd_flows_map, device = "pdf")
+}
+# Calculate distance between regions centers:
+labpt <- get_labpt_spdf(usa49reg)
+rownames(labpt) <- labpt$region
+
+# Estimate grid length, losses, costs
+trd_dt$distance_km <- 0.
+for (i in 1:dim(trd_dt)[1]) {
+  rg_dst <- trd_dt$dst[i]
+  rg_src <- trd_dt$src[i]
+  lab_dst <- labpt[rg_dst, 2:3]
+  lab_src <- labpt[rg_src, 2:3]
+  trd_dt$distance_km[i] <- raster::pointDistance(
+    lab_src, lab_dst, T)/1e3
+}
+
+# Assume losses 2% per 1000 km
+# trd_dt$losses <- round(trd_dt$distance_km / 1e3 * 0.02, 4)
+# Assume losses 1% per 1000 km (UHVDC)
+trd_dt$losses <- round(trd_dt$distance_km / 1e3 * 0.01, 4)
+trd_dt$teff <- 1 - trd_dt$losses
+# Assumption based on ABB's 4000-8000 MUSD per 12GW UHVDC, 2000km, 1-5% system losses
+# i.e. ~$160-333 MUSD/1000km per 1GW of the total system 
+# assuming ~$200 MUSD/1000km per 1GW of power line,
+# and $50 MUSD/GW for converter stations on each end
+# trd_dt$invcost <- round(trd_dt$distance_km / 1e3 * 200) # MUSD/GW of 1000km UHVDC
+trd_dt <- as_tibble(trd_dt)
+
+# Define trade object for every route, 
+# store in a repository object
+TRD_ELC_EXO <- newRepository(name = "TRD_ELC_EXO")
+for (i in 1:dim(trd_dt)[1]) {
+  src <- trd_dt$src[i]
+  dst <- trd_dt$dst[i]
+  trd_nm <- paste0("TRD_ELC_", src, "_", dst)  # Trade object name
+  cmd_nm <- "ELC"
+  # Trade class for every route
+  trd <- newTrade(trd_nm,
+                  commodity = cmd_nm,
+                  source = c(src, dst),
+                  destination = c(src, dst),
+                  trade = data.frame(
+                    src = src,
+                    dst = dst,
+                    # Maximum capacity per route in GW
+                    ava.up = convert("GWh", "GWh", 120),
+                    teff = trd_dt$teff[i] # trade losses
+                    # cost = trd_dt$cost[i]  # trade costs
+                    # markup = trd_dt$cost[i] # and/or markup
+                    ),
+                  capacityVariable = FALSE, 
+                  # bidirectional = FALSE,
+                  invcost = data.frame(
+                    src = src,
+                    dst = dst,
+                    year = 2010,
+                    invcost = trd_dt$distance_km[i] / 1e3 * 250 # 
+                  ),
+                  olife = data.frame(
+                    olife = 80
+                  ),
+                  cap2act = convert("GWh", "GWh", 24*365)
+                  )
+  
+  TRD_ELC_EXO <- add(TRD_ELC_EXO, trd)
+}
+names(TRD_ELC_EXO@data)
+# TRBD_UHV_NEI@data[[1]]
+
+
+```
+
+
+# Interregional UHV electrical grid
+(not tested yet)
+```{r Trade_bidirect_UHV_INV, eval=FALSE}
 # Propose trade matrix between regions
 {
 if (T) { 
@@ -1033,7 +1182,7 @@ EIMP <- newImport(
 reps <- add(
   newRepository('main_repository'), 
   # Commodities
-  ELC, SOL, WIN, WFF, UHV,
+  ELC, SOL, WIN, WFF, # UHV,
   # Resources (supply)
   RES_SOL, RES_WIN, RES_WFF,
   # Weather factors
@@ -1042,9 +1191,11 @@ reps <- add(
   ESOL, EWIN, EWFF,
   # Storage
   STGELCH, STGELCD,
+  # Simplified interregional ELC trade
+  TRD_ELC_EXO
   # UHV grid
-  TRBD_UHV_NEI,
-  ELC2UHV, UHV2ELC,
+  # TRBD_UHV_NEI,
+  # ELC2UHV, UHV2ELC,
   # Export/Import,
   EEXP, EIMP,
   # ELC demand with load curve (24 hours x 365 days)
