@@ -937,6 +937,19 @@ for (src_nm in unique(trd_dt$src)) {
 }
 
 names(TRD_ELC_ALL@data)
+TRD_ELC_ALL@data$TRD_ELC_ID
+
+# Do the same for UHV commodity, simply copying and replacing
+TRD_UHV_ALL <- TRD_ELC_ALL
+TRD_UHV_ALL@data <- lapply(TRD_UHV_ALL@data, function(x) {
+  x@name <- sub("_ELC_", "_UHV_", x@name)
+  x@commodity <- "UHV"
+  x
+})
+names(TRD_UHV_ALL@data) <- sub("_ELC_", "_UHV_", names(TRD_UHV_ALL@data))
+names(TRD_ELC_ALL@data)
+TRD_UHV_ALL@data$TRD_UHV_ID
+
 
 ```
 
@@ -1179,7 +1192,7 @@ EIMP <- newImport(
 
 ```
 
-# Model
+# Model #1
 ```{r Model_REN, eval=FALSE}
 # Repository with all the data-objects
 reps <- add(
@@ -1284,6 +1297,113 @@ save(scen_REN, file = "scenarios/scen_RENBAL.RData")
 
 ```
 
+# Model #2
+```{r Model_REN, eval=FALSE}
+# Repository with all the data-objects
+reps <- add(
+  newRepository('main_repository'), 
+  # Commodities
+  ELC, SOL, WIN, WFF, # UHV,
+  # Resources (supply)
+  RES_SOL, RES_WIN, RES_WFF,
+  # Weather factors
+  SOLAR_AF, WINOF20_AF, WINON20_AF,
+  # Generating technologies
+  ESOL, EWIN, EWFF,
+  # Storage
+  STGELCH, STGELCD,
+  # Simplified interregional ELC trade
+  # TRD_ELC_ALL,
+  TRD_UHV_ALL,
+  # UHV grid
+  # TRBD_UHV_NEI,
+  ELC2UHV, UHV2ELC,
+  # Export/Import,
+  EEXP, EIMP,
+  # ELC demand with load curve (24 hours x 365 days)
+  DEM_ELC_DH # static
+)
+length(reps@data)
+names(reps@data)
+
+mdl <- newModel(
+  name = 'RENBAL2', 
+  description = "Renewables balancing model",
+  # debug = data.frame(#comm = "ELC",
+  #                    dummyImport = 1e6,
+  #                    dummyExport = 1e6),
+  region = reg_names,
+  discount = 0.05,
+  slice = list(ANNUAL = "ANNUAL",
+               # MONTH = timeslices$MONTH, 
+               # HOUR = timeslices$HOUR
+               YDAY = timeslices365$YDAY, 
+               HOUR = timeslices365$HOUR
+               ),
+  repository = reps,
+  GIS = usa49reg,
+  early.retirement = F)
+
+head(mdl@sysInfo@slice@levels)
+# mdl <- setMilestoneYears(mdl, start = 2015, interval = c(1, 2, 5, 6, 7, rep(10, 3)))
+mdl <- setMilestoneYears(mdl, start = 2017, interval = c(1))
+mdl@sysInfo@milestone
+
+# (optional) GAMS and CPLEX options
+{mdl@misc$includeBeforeSolve <- "
+option iterlim = 3e7;
+option reslim = 3e4;
+option LP = CPLEX;
+option threads=12;
+option savepoint=1;
+*option bRatio = 0;
+$onecho > cplex.opt
+freegamsmodel 1
+parallelmode -1
+lpmethod 6
+*advind 1
+printoptions 0
+names no
+*memoryemphasis 1 
+$offecho
+*$exit
+energyRt.OptFile = 1;
+*execute_loadpoint 'energyRt_p';"
+} # GAMS & CPLEX parameters
+
+# Adding the scenario info
+{mdl@description <- "
+USENSYS, power sector, balancing version,
+49 regions, 1 hour resolution,
+3 types of renewables, 
+no initial stock,
+exogenous UHV grid,
+converter stations."}
+
+# (optional) save GDX file with the solution
+{mdl@misc$includeAfterSolve <- 
+"parameter zModelStat;
+zModelStat = energyRt.ModelStat; 
+execute_unload 'USENSYS_ELC_RENBAL.gdx';"
+}
+
+# Workflow to solve the model (recommended for large models):
+# 1. Interpolation of parameters
+scen_REN2 <- interpolate(mdl, name = "RENBAL2")
+# 2. Writing the model code and data in folder
+write_model(scen_REN2, tmp.dir = "solwork/RENBAL2", solver = "GAMS")
+# save(scen_REN2, file = "solwork/renbal/scen_REN2.RData")
+# 3. Solving the model
+# Alterntively, run GAMS directly in the model folder: 'gams mdl'
+solve_model(tmp.dir = "solwork/RENBAL2")
+# 4. Read the solution
+scen_REN2 <- read_solution(scen_REN2, dir.result = "solwork/RENBAL2")
+summary(scen_REN2)
+
+save(scen_REN2, file = "scenarios/scen_RENBAL.RData")
+
+```
+
 # Check the results  
 ```{r quick_check}
 if (!exists("scen")) {
@@ -1292,7 +1412,7 @@ if (!exists("scen")) {
 }
 
 # Objective (system costs)
-getData(scen, name = "vObjective")
+(vObjective <- getData(scen, name = "vObjective", merge = T))
 
 # Total electricity output from generating technologies
 (vTechOut_ELC <- getData(scen, name = "vTechOut", comm = "ELC", tech_ = "^E", 
@@ -1305,21 +1425,158 @@ unique(vTechOut_ELC$tech)
 # Total ELC Output vs Demand
 sum(vTechOut_ELC$value) / sum(pDemand_ELC$value)
 
+# System costs USD/kWh (== MUSD/GWh)
+## for electricity consumed
+vObjective$value / sum(pDemand_ELC$value)
+## for electricity produced
+vObjective$value / sum(vTechOut_ELC$value)
+
 # Supply curtailments
 (vExportROW_ELC <- getData(scen, name = "vExportRow", merge = T)) 
 
 # Demand curtailments
 (vImportROW_ELC <- getData(scen, name = "vImportRow", merge = T)) 
 
-# Capacity 
+# Generating capacity 
 (vTechCap <- getData(scen, name = "vTechCap", merge = T))
 vTechCap %>%
   group_by(scenario, tech, year) %>%
   summarise(GW = sum(value))
 
+# Storage capacity
+getData(scen, name = "vStorageCap", merge = T)
+sum(getData(scen, name = "vStorageCap", merge = T)$value)
+getData(scen, name = "vStorageCap", merge = T) %>%
+  group_by(scenario, stg, region, year) %>%
+  summarize(GW = sum(value))
+(vStorageCap_STGELCD <- getData(scen, name = "vStorageCap", merge = T, stg = "STGELCD"))
+(vStorageCap_STGELCH <- getData(scen, name = "vStorageCap", merge = T, stg = "STGELCH"))
+sum(vStorageCap_STGELCD$value) # GWh - interdday (~seasonal) storage
+sum(vStorageCap_STGELCH$value) # GWh - intraday (hourly) storage
+
+# Ir-Trade
 
 
 ```
 
 
-tbc..
+```{r}
+(vTechOut_ELC <- getData(scen, name = "vTechOut", comm = "ELC", 
+                         tech_ = "^E",
+                         merge = T, newNames = c("value" = "GWh")))
+summary(vTechOut_ELC$GWh)
+unique(vTechOut_ELC$tech)
+
+supy <- vTechOut_ELC %>%
+  mutate(hour = as.integer(substr(slice, 7,8))) %>%
+  group_by(scenario, year, hour, tech) %>%
+  summarize(TWh = sum(GWh)/1e3) %>%
+  mutate(tech = factor(tech, 
+                       levels = c("ESOL", "EWFF", "EWIN"), 
+                       ordered = T))
+
+ggplot(supy) + 
+  geom_area(aes(x = hour, y = TWh, fill = tech), stat = "identity") +
+  labs(title = "Annual generation profile")
+
+
+supm <- vTechOut_ELC %>%
+  mutate(#hour = as.integer(substr(slice, 7,8)),
+         month = month(as.Date ("2017-01-01") + as.integer(substr(slice, 2, 4)) - 1)) %>%
+  mutate(month.name = factor(month.name[month], levels = month.name[1:12], ordered = T)) %>%
+  group_by(scenario, year, month, month.name, tech) %>%
+  summarize(TWh = sum(GWh)/1e3) %>%
+  mutate(tech = factor(tech, 
+                       levels = c("ESOL", "EWFF", "EWIN"), 
+                       ordered = T))
+ggplot(supm) + 
+  geom_bar(aes(x = month.name, y = TWh, fill = tech), stat = "identity") 
+
+```
+
+# Capacity maps
+```{r Capacity_maps}
+cap_2017 <- getData(scen, name = "vTechCap", merge = T)
+
+# Technologies capacity
+# fig_map_cap_2017_by_tech <-
+ggplot(data = usa49r) + 
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "grey85", 
+                   colour = "white", alpha = 1, size = .5) +
+    geom_polygon(aes(x = long, y = lat, group = group, fill = value),
+                     data = right_join(usa49r, cap_2017, by = c("id" = "region")), #fill = "wheat", 
+                 color = "white", alpha = 1, size = 0.25, inherit.aes = F) + # aes fill = id, 
+    coord_fixed(1.3) +
+    # scale_fill_distiller(palette = "Spectral", direction = -1, name = "GW") +
+    scale_fill_distiller(palette = "Spectral", direction = -1, trans = "log10", name = "GW") +
+    theme_void() +
+    facet_wrap(.~tech, ncol = 2)
+    # facet_wrap(.~tech, ncol = 2, scales = "free")
+# fig_map_cap_2017_by_tech
+# ggsave(file.path("fig", scen@name,"fig_map_cap_2017_by_tech.pdf"), fig_map_cap_2017_by_tech, device = "pdf")
+
+# Storage capacity
+stg_2017 <- getData(scen, name = "vStorageCap", merge = T)
+# stg_2017$GWh <- convert("PJ", "GWh", stg_2017$value)
+stg_2017$GWh <- convert("GWh", "GWh", stg_2017$value)
+fig_map_stg_2017 <-
+ggplot(data = usa49r) + 
+  geom_polygon(aes(x = long, y = lat, group = group), fill = "grey85", 
+                   colour = "white", alpha = 1, size = .5) +
+    geom_polygon(aes(x = long, y = lat, group = group, fill = GWh),
+                     data = right_join(usa49r, stg_2017, by = c("id" = "region")), #fill = "wheat", 
+                 color = "white", alpha = 1, size = 0.25, inherit.aes = F) + # aes fill = id, 
+    coord_fixed(1.3) +
+    # scale_fill_distiller(palette = "Spectral", direction = -1, name = "GW") +
+    scale_fill_distiller(palette = "Spectral", direction = -1, trans = "log10") +
+    theme_void() + facet_wrap(.~stg)
+fig_map_stg_2017
+
+# ggsave(file.path("fig", scen@name,"fig_map_stg_2017.pdf"), fig_map_stg_2050, device = "pdf")
+
+
+```
+
+
+```{r Trade flows}
+trdIr <- getData(scen, name = "vTradeIr", merge = T)
+summary(trdIr$value)
+# summary(convert("PJ", "GWh", trdIr$value))
+trdIr[which(trdIr$value == max(trdIr$value)), ]
+
+trdIr_year <- trdIr %>%
+  group_by(src, dst, year) %>%
+  # summarize(TWh = convert("PJ", "TWh", sum(value)))
+  summarize(
+    GW = max(value),
+    GWh = sum(value))
+trdIr_year
+
+trd_elc_y <- left_join(trdIr_year, trd_map)
+summary(trd_elc_y$GWh)
+summary(trd_elc_y$GW)
+trd_elc_y[is.na(trd_elc_y$GWh),]
+
+trd_flows_map
+ggplot(data = usa49r) + 
+    geom_polygon(aes(x = long, y = lat, group = group), fill = "wheat", 
+                 colour = "white", alpha = 1, size = .5) + # aes fill = id, 
+    coord_fixed(1.3) +
+    guides(fill=FALSE) +  # do this to leave off the color legend
+    theme_void() + labs(title = "Annual interregional electricity trade flows")  + 
+    theme(plot.title = element_text(hjust = 0.5), 
+          plot.subtitle = element_text(hjust = 0.5)) +
+    geom_segment(aes(x=xsrc, y=ysrc, xend=xdst, yend=ydst, size = GWh/1e3), 
+                 data = trd_elc_y, inherit.aes = FALSE, #size = 3, 
+                 alpha = 1, colour = "dodgerblue", lineend = "round", show.legend = T) +
+    geom_point(data = reg_centers, aes(x, y), colour = "red") +
+    geom_segment(aes(x=xsrc, y=ysrc, xend=xdst, yend=ydst), 
+                 data = trd_elc_y, inherit.aes = FALSE, size = .1, 
+             arrow = arrow(type = "closed", angle = 15, 
+                           length = unit(0.15, "inches")),
+             colour = "white", alpha = 0.75, 
+             lineend = "butt", linejoin = "mitre", show.legend = T)
+
+
+```
+
