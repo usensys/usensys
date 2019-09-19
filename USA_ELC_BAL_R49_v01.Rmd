@@ -794,7 +794,7 @@ STGELCD <- newStorage(
 ```{r Trade_routes_ELC, eval=TRUE}
 # Propose trade matrix between regions
 {
-if (T) { 
+if (F) { 
   # Load trade matrix from your file
   trd_xl <- readxl::read_excel("data/trade_matrix01.xlsx",
                                range = "A1:AX50")
@@ -1192,7 +1192,7 @@ reps <- add(
   # Storage
   STGELCH, STGELCD,
   # Simplified interregional ELC trade
-  TRD_ELC_EXO
+  TRD_ELC_EXO,
   # UHV grid
   # TRBD_UHV_NEI,
   # ELC2UHV, UHV2ELC,
@@ -1229,8 +1229,8 @@ mdl@sysInfo@milestone
 
 # (optional) GAMS and CPLEX options
 {mdl@misc$includeBeforeSolve <- "
-option iterlim = 1e7;
-option reslim = 3e5;
+option iterlim = 3e7;
+option reslim = 3e4;
 option LP = CPLEX;
 option threads=12;
 option savepoint=1;
@@ -1255,7 +1255,7 @@ USENSYS, power sector, balancing version,
 49 regions, 1 hour resolution,
 3 types of renewables, 
 no initial stock,
-endogenous UHVDC grid."}
+exogenous ELC grid."}
 
 # (optional) save GDX file with the solution
 {mdl@misc$includeAfterSolve <- 
@@ -1269,6 +1269,7 @@ execute_unload 'USENSYS_ELC_RENBAL.gdx';"
 scen_REN <- interpolate(mdl, name = "RENBAL")
 # 2. Writing the model code and data in folder
 write_model(scen_REN, tmp.dir = "solwork/RENBAL", solver = "GAMS")
+# save(scen_REN, file = "solwork/renbal/scen_REN.RData")
 # 3. Solving the model
 # Alterntively, run GAMS directly in the model folder: 'gams mdl'
 solve_model(tmp.dir = "solwork/RENBAL1")
@@ -1283,7 +1284,7 @@ save(scen_REN, file = "scenarios/scen_RENBAL1.RData")
 # Check the results  
 ```{r quick_check}
 if (!exists("scen")) {
-  if(!exists("scen_REN")) load("scenarios/scen_RENBAL1.RData")
+  if(!exists("scen_REN")) load("scenarios/scen_RENBAL.RData")
   scen <- scen_REN
 }
 
