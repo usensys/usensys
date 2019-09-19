@@ -1195,7 +1195,7 @@ reps <- add(
   # Storage
   STGELCH, STGELCD,
   # Simplified interregional ELC trade
-  TRD_ELC_EXO,
+  TRD_ELC_ALL,
   # UHV grid
   # TRBD_UHV_NEI,
   # ELC2UHV, UHV2ELC,
@@ -1277,10 +1277,10 @@ write_model(scen_REN, tmp.dir = "solwork/RENBAL", solver = "GAMS")
 # Alterntively, run GAMS directly in the model folder: 'gams mdl'
 solve_model(tmp.dir = "solwork/RENBAL1")
 # 4. Read the solution
-scen_REN <- read_solution(scen_REN, dir.result = "solwork/RENBAL1")
+scen_REN <- read_solution(scen_REN, dir.result = "solwork/RENBAL")
 summary(scen_REN)
 
-save(scen_REN, file = "scenarios/scen_RENBAL1.RData")
+save(scen_REN, file = "scenarios/scen_RENBAL.RData")
 
 ```
 
@@ -1316,6 +1316,7 @@ sum(vTechOut_ELC$value) / sum(pDemand_ELC$value)
 vTechCap %>%
   group_by(scenario, tech, year) %>%
   summarise(GW = sum(value))
+
 
 
 ```
