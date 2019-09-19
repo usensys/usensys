@@ -287,7 +287,8 @@ For wind energy, wind-power curves are used to estimate potential output of wind
 load("data/MERRA2/nasa_sol_US49.RData")
 gsol
 summary(gsol$SWGNT)
-hist(gsol$SWGNT[gsol$SWGNT > 0], col = "lightblue", probability = T)
+hist(gsol$SWGNT[gsol$SWGNT > 0], col = "lightblue", probability = T,
+     main = "SWGNT: Surface net downward shortwave flux, Watts/sq.m")
 
 # Annual aggregate, kWh/day
 ysol <- group_by(gsol, loc_id, lat, lon, region) %>%
@@ -1298,12 +1299,12 @@ save(scen_REN, file = "scenarios/scen_RENBAL.RData")
 ```
 
 # Model #2
-```{r Model_REN, eval=FALSE}
+```{r Model_REN2, eval=FALSE}
 # Repository with all the data-objects
 reps <- add(
   newRepository('main_repository'), 
   # Commodities
-  ELC, SOL, WIN, WFF, # UHV,
+  ELC, SOL, WIN, WFF, UHV,
   # Resources (supply)
   RES_SOL, RES_WIN, RES_WFF,
   # Weather factors
@@ -1384,7 +1385,7 @@ converter stations."}
 {mdl@misc$includeAfterSolve <- 
 "parameter zModelStat;
 zModelStat = energyRt.ModelStat; 
-execute_unload 'USENSYS_ELC_RENBAL.gdx';"
+execute_unload 'USENSYS_ELC_RENBAL2.gdx';"
 }
 
 # Workflow to solve the model (recommended for large models):
@@ -1400,7 +1401,7 @@ solve_model(tmp.dir = "solwork/RENBAL2")
 scen_REN2 <- read_solution(scen_REN2, dir.result = "solwork/RENBAL2")
 summary(scen_REN2)
 
-save(scen_REN2, file = "scenarios/scen_RENBAL.RData")
+save(scen_REN2, file = "scenarios/scen_RENBAL2.RData")
 
 ```
 
@@ -1408,7 +1409,10 @@ save(scen_REN2, file = "scenarios/scen_RENBAL.RData")
 ```{r quick_check}
 if (!exists("scen")) {
   if(!exists("scen_REN")) load("scenarios/scen_RENBAL.RData")
+  if(!exists("scen_REN2")) load("scenarios/scen_RENBAL2.RData")
+  # Select scenario for analysis
   scen <- scen_REN
+  scen <- scen_REN2
 }
 
 # Objective (system costs)
@@ -1459,7 +1463,7 @@ sum(vStorageCap_STGELCH$value) # GWh - intraday (hourly) storage
 
 ```
 
-
+# Shape of supply
 ```{r}
 (vTechOut_ELC <- getData(scen, name = "vTechOut", comm = "ELC", 
                          tech_ = "^E",
@@ -1506,11 +1510,14 @@ ggplot(data = usa49r) +
     geom_polygon(aes(x = long, y = lat, group = group, fill = value),
                      data = right_join(usa49r, cap_2017, by = c("id" = "region")), #fill = "wheat", 
                  color = "white", alpha = 1, size = 0.25, inherit.aes = F) + # aes fill = id, 
-    coord_fixed(1.3) +
-    # scale_fill_distiller(palette = "Spectral", direction = -1, name = "GW") +
-    scale_fill_distiller(palette = "Spectral", direction = -1, trans = "log10", name = "GW") +
-    theme_void() +
-    facet_wrap(.~tech, ncol = 2)
+  coord_fixed(1.3) +
+  theme_void() +
+  # scale_fill_distiller(palette = "Spectral", direction = -1, name = "GW") +
+  scale_fill_distiller(palette = "Spectral", direction = -1, trans = "log10", name = "GW") +
+  labs(title = "Installed technologies") +
+  theme(plot.title = element_text(hjust = 0.5), 
+        plot.subtitle = element_text(hjust = 0.5)) +
+  facet_wrap(.~tech, ncol = 2)
     # facet_wrap(.~tech, ncol = 2, scales = "free")
 # fig_map_cap_2017_by_tech
 # ggsave(file.path("fig", scen@name,"fig_map_cap_2017_by_tech.pdf"), fig_map_cap_2017_by_tech, device = "pdf")
@@ -1537,7 +1544,7 @@ fig_map_stg_2017
 
 ```
 
-
+# Trade flows maps
 ```{r Trade flows}
 trdIr <- getData(scen, name = "vTradeIr", merge = T)
 summary(trdIr$value)
