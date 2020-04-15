@@ -17,7 +17,7 @@ By now, here is the data webscraping/processing file `US_ELC_data.Rmd`.
 
 ### Renewables balancing model  
 The first draft of renewables balancing model here - check **USA_ELC_BAL_R49_vXX.Rmd** and/or the "knitted" pdf with the same name. The model includes several generating technologies (solar, on- and offshore wind, thermal), storage technologies (intraday and interday), and several versions of interregional grid.  
-Several solved scenarios are saved in the *scenarios/* directory. Details available in the *.Rmd files and on the model website: (www.usensys.org)[https://www.usensys.org/].   
+Several solved scenarios are saved in the *scenarios/* directory. Details available in the *.Rmd files and on the model website: [www.usensys.org](https://www.usensys.org/).   
 
 
 ### Standard capacity expansion model  
