@@ -1,4 +1,4 @@
-# usensys  
+# usensys  <a href='http://www.usensys.org/'><img src='man/figures/usensys.png' align="right" height="139" /></a>
 
 *WORK IN PROGRESS*  
 
@@ -16,14 +16,9 @@ There will be two main versions of the sector:
 By now, here is the data webscraping/processing file `US_ELC_data.Rmd`. 
 
 ### Renewables balancing model  
-The first draft of renewables balancing model here - check **USA_ELC_BAL_R49.Rmd** and/or the "knitted" pdf with the same name. The model includes three generating technologies (solar, on- and ofshore wind farms), two storage technologies (intraday and interday), and several versions of interregional grid.  
-Solved scenarios are saved in the *scenarios/* directory.  
-* scen_RENBAL0.RData - no grid, no interregional dispatch  
-* scen_RENBAL1.RData - simplified, open trade routes between neighbour regions with upper limit, losses and costs  
-* scen_RENBAL2.RData - same with added UHV electricity, rectifier and inverter stations.  
+The first draft of renewables balancing model here - check **USA_ELC_BAL_R49_vXX.Rmd** and/or the "knitted" pdf with the same name. The model includes several generating technologies (solar, on- and offshore wind, thermal), storage technologies (intraday and interday), and several versions of interregional grid.  
+Several solved scenarios are saved in the *scenarios/* directory. Details available in the *.Rmd files and on the model website: (www.usensys.org)[https://www.usensys.org/].   
 
-Some visualisations of earlier scenarios with the model can be found here:  
-https://www.youtube.com/channel/UCw4fCrRTozmAqwHY63oLT2A  
 
 ### Standard capacity expansion model  
 in progress...  
