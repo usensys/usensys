@@ -2,6 +2,7 @@
 title: "USENSYS - Electric Power Sector"
 subtitle: "renewables balancing version (6.0)"
 author: "@olugovoy"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   pdf_document: 
     toc: yes
@@ -20,9 +21,10 @@ editor_options:
 * **v6.0** (Apr 11, 2020)  
 -- Rediced time resolution for supply commodities to improve performance.  
 -- Added capacity constraints to control resource availability of solar and wind energy.  
+-- The temporary solution for large data files: [usensys-balancing-model-data](https://www.dropbox.com/transfer/AAAAAP1eJGr_BoOzVpyeuxur8jcZNegmE8DOjFZfuQFDW56K9rRyMxo).  
 
 * **v5.0** (Feb 22, 2020)  
--- Small adjustment according to the newer version of the *energyRt* package ().   
+-- Small adjustment according to the newer version of the *energyRt* package (v0.0.4).   
 -- Investment costs of UHVDC lines increased (+50% for land, an assumption).  
 -- Concevative storage costs for all scenarios.  
 -- 100 interregional UHVDC power lines (vs. 80+ in previous version).  
@@ -247,8 +249,10 @@ load(file.path(eiadir, "eia_raw.RData"))
 # load curve data from:
 # https://www.eia.gov/opendata/qb.php?sdid=EBA.US48-ALL.D.H
 # Demand for United States Lower 48 (region), hourly - UTC time
-lc <- read_csv("data/EIA/Demand_for_United_States_Lower_48_(region)_hourly_-_UTC_time.csv", 
-               skip = 5, col_names = c("datetime", "MWh"))
+# lc <- read_csv("data/EIA/Demand_for_United_States_Lower_48_(region)_hourly_-_UTC_time.csv", 
+#                skip = 5, col_names = c("datetime", "MWh"))
+load(file.path(eiadir, "loadcurve.RData")) #lc
+
 dim(lc)
 head(lc)
 lc$datetime_EST <- mdy_h(lc$datetime, tz = "EST")
