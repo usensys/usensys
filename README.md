@@ -1,4 +1,4 @@
-# usensys  <a href='http://www.usensys.org/'><img src='man/figures/usensys.png' align="right" height="139" /></a>
+# usensys  <a href='http://www.usensys.org/'><img src='img/logo.svg' align="right" height="139" /></a>
 
 *WORK IN PROGRESS*  
 
