@@ -32,7 +32,7 @@ library(tidyverse)
 
 # Info
 
-The purpose of the code below is to acquire and preprocess US electric power sector data from EIA, EPA, and other sources. The final processed data, which is required to run USENSYS model, is stored in the '/data' directory in '.RData' format in the model working directory. It is not required to run scripts in this file to be able to run all the versions of USENSYS, available on on GitHub. The code below is provided for reference, and in order to be able to change the aggregation procedure.
+The purpose of the code below is to acquire and preprocess US electric power sector data from EIA, EPA, and other sources. The final processed data, which is required to run USENSYS model, is stored in the '/data' directory in '.RData' format in the model working directory. It is not required to run scripts in this file to be able to run all the versions of USENSYS, available on GitHub. The code below is provided for reference, and in order to be able to change the aggregation procedure.
 
 # Obtaining EIA data 
 ## By states
@@ -40,34 +40,33 @@ The purpose of the code below is to acquire and preprocess US electric power sec
 Downloading data from <https://www.eia.gov/electricity/data/state/>.  
 
 Version:  
-Final annual data for 2017   
-  Release Date: October 12, 2018  
-  Next Release Date: November 2019  
-  Re-released: January 15, 2019 Revision/Corrections <https://www.eia.gov/electricity/data/state/correction.php>  
-
+Final annual data for 2018
+  Release Date: October 22, 2019
+  Next Release Date: November 2020
+  
 ```{r EIA_data_annual_&_monthly}
 eiadir <- file.path(getwd(), "data/EIA")
 if(!dir.exists(eiadir)) dir.create(eiadir, recursive = T)
 
 {www <- list()
 # Annual data ####
-# 1990 - 2017	Net Generation by State by Type of Producer by Energy Source (EIA-906, EIA-920, and EIA-923)
+# 1990 - 2018	Net Generation by State by Type of Producer by Energy Source (EIA-906, EIA-920, and EIA-923)
 www$annual_generation_state.xls <- "https://www.eia.gov/electricity/data/state/annual_generation_state.xls"
-# 1990 - 2017	Fossil Fuel Consumption for Electricity Generation by Year, Industry Type and State (EIA-906, EIA-920, and EIA-923)2
+# 1990 - 2018	Fossil Fuel Consumption for Electricity Generation by Year, Industry Type and State (EIA-906, EIA-920, and EIA-923)2
 www$annual_consumption_state.xls <- "https://www.eia.gov/electricity/data/state/annual_consumption_state.xls"
-# 1990 - 2017	Existing Nameplate and Net Summer Capacity by Energy Source, Producer Type and State (EIA-860)1, 3
+# 1990 - 2018	Existing Nameplate and Net Summer Capacity by Energy Source, Producer Type and State (EIA-860)1, 3
 www$existcapacity_annual.xlsx <- "https://www.eia.gov/electricity/data/state/existcapacity_annual.xlsx"
-# 2018 - 2022	Proposed Nameplate and Net Summer Capacity by Year, Energy Source, and State (EIA-860)1
+# 2018 - 2023	Proposed Nameplate and Net Summer Capacity by Year, Energy Source, and State (EIA-860)1
 www$plancapacity_annual.xlsx <- "https://www.eia.gov/electricity/data/state/plancapacity_annual.xlsx"
-# 1990 - 2017	U.S. Electric Power Industry Estimated Emissions by State (EIA-767, EIA-906, EIA-920, and EIA-923)4
+# 1990 - 2018	U.S. Electric Power Industry Estimated Emissions by State (EIA-767, EIA-906, EIA-920, and EIA-923)4
 www$emission_annual.xls <- "https://www.eia.gov/electricity/data/state/emission_annual.xls"
-# 1990 - 2017	Average Price by State by Provider (EIA-861)5
+# 1990 - 2018	Average Price by State by Provider (EIA-861)5
 www$avgprice_annual.xlsx <- "https://www.eia.gov/electricity/data/state/avgprice_annual.xlsx"
-# 1990 - 2017	Number of Retail Customers by State by Sector (EIA-861)5
+# 1990 - 2018	Number of Retail Customers by State by Sector (EIA-861)5
 www$customers_annual.xlsx <- "https://www.eia.gov/electricity/data/state/customers_annual.xlsx"
-# 1990 - 2017	Retail Sales of Electricity by State by Sector by Provider (EIA-861)5
+# 1990 - 2018	Retail Sales of Electricity by State by Sector by Provider (EIA-861)5
 www$sales_annual.xlsx <- "https://www.eia.gov/electricity/data/state/sales_annual.xlsx"
-# 1990 - 2017	Revenue from Retail Sales of Electricity by State by Sector by Provider (EIA-861)5
+# 1990 - 2018	Revenue from Retail Sales of Electricity by State by Sector by Provider (EIA-861)5
 www$revenue_annual.xlsx <- "https://www.eia.gov/electricity/data/state/revenue_annual.xlsx"
 # 2001 - 2003	Financial Data on Publicly Owned Electric Utilities with Generation Facilities by State (EIA-412)6	
 www$financewgen_annual.xls <- "https://www.eia.gov/electricity/data/state/financewgen_annual.xls"
@@ -75,6 +74,10 @@ www$financewgen_annual.xls <- "https://www.eia.gov/electricity/data/state/financ
 www$financewogen_annual.xls <- "https://www.eia.gov/electricity/data/state/financewogen_annual.xls"
 
 # Monthly data from Electric Power Monthly ####
+# Electric Power Monthly with data for November 2019
+#   Release date: January 30, 2020
+#   Next release date: End of February 2020
+  
 # 2001 - Present	Net Generation by State by Type of Producer by Energy Source1	
 www$generation_monthly.xlsx <- "https://www.eia.gov/electricity/data/state/generation_monthly.xlsx"
 # 2001 - Present	Fossil Fuel Consumption for Electricity Generation by Year, Industry Type and State2	
@@ -100,24 +103,24 @@ sapply(www, download, overwrite = F)
 # Annual capacity
 elc_cap <- read_excel(file.path(eiadir, basename(www$existcapacity_annual.xlsx)),
                       sheet = "Existing Capacity",
-                      range = "A1:H42756")
+                      range = "A2:H44621")
 elc_cap
        
 # Fuels consumption for electricity generation by months
 fue4elc <- read_excel(file.path(eiadir, basename(www$consumption_monthly.xlsx)),
-                      sheet = "2017_Preliminary",
-                      range = "A5:F9391")
+                      sheet = "2018_Preliminary",
+                      range = "A5:F9361")
 fue4elc
 
 # Electricity generation by months and energy type
 elc_gen <- read_excel(file.path(eiadir, basename(www$generation_monthly.xlsx)),
-                      sheet = "2017_Preliminary",
-                      range = "A5:F24880")
+                      sheet = "2018_Preliminary",
+                      range = "A5:F25156")
 elc_gen
 
 elc_emis <- read_excel(file.path(eiadir, basename(www$emission_annual.xls)),
                       sheet = "State Emissions",
-                      range = "A1:G24880")
+                      range = "A1:G41765")
 elc_emis
 
 save(elc_cap, fue4elc, elc_gen, elc_emis, file = file.path(eiadir, "eia_raw.RData"))
@@ -126,28 +129,27 @@ save(elc_cap, fue4elc, elc_gen, elc_emis, file = file.path(eiadir, "eia_raw.RDat
 
 
 ## Power plants & generator level data  
-### Form EIA-860 detailed data with previous form data (EIA-860A/860B  
+### Form EIA-860 detailed data with previous form data (EIA-860A/860B)  
 <https://www.eia.gov/electricity/data/eia860/> 
-  Release Date: September 13, 2018, Final 2017 data   
-  Next release date: June 2019, Early release 2018 data   
+  Release date: September 3, 2019, Final 2018 data
+  Next release date: June 2020, Early release 2019 data  
 The survey Form EIA-860 collects generator-level specific information about existing and planned generators and associated environmental equipment at electric power plants with 1 megawatt or greater of combined nameplate capacity.  
 
 ### Form EIA-923 detailed data with previous form data (EIA-906/920)  
 <https://www.eia.gov/electricity/data/eia923/>  
-  Monthly (M) release date: April 29, 2019 for February 2019 data   
-  Next monthly release: End of May 2019 (March 2019 data)  
-  Final 2017 data: September 20, 2018  
-  Re-released: March 6, 2019  Corrections/Revisions  
-Update notice: The moisture content and chlorine content for coal receipts were added to the EIA-923 preliminary data file.  
+Monthly (M) release date: January 30, 2020 for November 2019 data
+  Next monthly release: End of February 2020 (December 2019 data)
+  Annual release date: September 20, 2019, Final 2018 data
+  2018 Re-released: January 8, 2020  Corrections/Revisions  
 
-The survey Form EIA-923 collects detailed electric power data -- monthly and annually -- on electricity generation, fuel consumption, fossil fuel stocks, and receipts at the power plant and prime mover level. Specific survey information provided:  
+The survey Form EIA-923 collects detailed electric power data -- monthly and annually -- on electricity generation, fuel consumption, fossil fuel stocks, and receipts at the power plant and prime mover level. Specific survey information provided:
 * Schedule 2 - fuel receipts and costs  
 * Schedules 3A & 5A - generator data including generation, fuel consumption and stocks  
 * Schedule 4 - fossil fuel stocks  
 * Schedules 6 & 7 - non-utility source and disposition of electricity  
 * Schedules 8A-F - environmental data  
-* Monthly data (M) - over 1,800 plants from the monthly survey  
-* Annual final data - approximately 2,350 monthly plants + 5,790 plants from the annual survey  
+Monthly data (M) -approximately 2,026 plants from the monthly survey  
+Annual final data - approximately 2,026 monthly plants + 7,278 plants from the annual survey   
 
 Summary data  
 <https://www.eia.gov/electricity/data.php#gencapacity>  
@@ -177,8 +179,8 @@ sapply(www, download, overwrite = F)
 
 fls <- names(www)
 
-# Select data for 2017
-fls <- fls[grepl("2017", fls)]
+# Select data for 2018
+fls <- fls[grepl("2018", fls)]
 zz <- grepl("zip$", fls) # select zip-files for unzipping
 # Unzip files
 for (f in fls[zz]) {
@@ -249,9 +251,9 @@ cleanread_xls <- function(path, sheet, range, dbl2int = T, YNasBinary = T) {
   xls
 }
 
-elc_pp <- cleanread_xls(file.path(eiadir, "eia8602017/2___Plant_Y2017.xlsx"),
+elc_pp <- cleanread_xls(file.path(eiadir, "eia8602018/2___Plant_Y2018.xlsx"),
                       sheet = "Plant",
-                      range = "A2:AP10129")
+                      range = "A2:AP10982")
 col_type <- sapply(elc_pp, class)
 unique(col_type)
 names(elc_pp)
@@ -270,17 +272,17 @@ save(elc_pp, file = file.path(eiadir, "elc_pp.RData"))
 
 ```{r}
 # continue..
-elc_gn <- cleanread_xls(file.path(eiadir, "eia8602017/3_1_Generator_Y2017.xlsx"),
+elc_gn <- cleanread_xls(file.path(eiadir, "eia8602018/3_1_Generator_Y2018.xlsx"),
                       sheet = "Operable",
-                      range = "A2:BU21439")
+                      range = "A2:BU22120")
 col_type <- sapply(elc_gn, class)
 unique(col_type)
 elc_gn
 names(elc_gn)
 
-elc_genfue <- cleanread_xls(file.path(eiadir, "f923_2017/EIA923_Schedules_2_3_4_5_M_12_2017_Final_Revision.xlsx"),
+elc_genfue <- cleanread_xls(file.path(eiadir, "f923_2018/EIA923_Schedules_2_3_4_5_M_12_2018_Final_Revision.xlsx"),
                       sheet = "Page 1 Generation and Fuel Data",
-                      range = "A6:CS13385")
+                      range = "A6:CS13968")
 elc_genfue
 names(elc_genfue)
 col_type <- sapply(elc_genfue, class)
@@ -352,7 +354,6 @@ sum(aa$cap)/1e3
 
 (unique(aa$Technology))
 
-
 ```
 
 # EPA data
@@ -393,6 +394,12 @@ scrap_ipm <- function(weblink, filepatern = "([a-zA-Z0-9_]+.zip)|([a-zA-Z0-9_]+.
 }
 www <- scrap_ipm(ipmweb)
 sapply(www, download, overwrite = F, path = ipmdir)
+
+# IPM shape files
+download(url = "https://www.epa.gov/sites/production/files/2019-08/ipm_v6_regions.zip",
+         overwrite = F, path = ipmdir)
+unzip(file.path(ipmdir, "ipm_v6_regions.zip"), 
+      exdir = file.path(ipmdir, "ipm_v6_regions"), overwrite = T)
 
 ```
 
@@ -484,25 +491,31 @@ write_tsv(gas_sup_byreg, path = "tmp/gas_sup_byreg.tab")
 ### NEEDS v6 Database
 National Electric Energy Data System (NEEDS) v6
 <https://www.epa.gov/airmarkets/national-electric-energy-data-system-needs-v6>
-Accessed: September 14, 2019
+Accessed: Feb 13, 2020
 
 The National Electric Energy Data System or “NEEDS” database contains the generation unit records used to construct the "model" plants that represent existing and planned/committed units in EPA modeling applications of IPM. NEEDS includes basic geographic, operating, air emissions, and other data on these generating units. NEEDS v6 is a complete bottom-up update for EPA's new power sector modeling platform v6.  For a description of the sources used in preparing NEEDS v6, see Documentation, Chapter 4: Generating Resources.
 
 
 ```{r}
-# needsweb <- "https://www.epa.gov/airmarkets/national-electric-energy-data-system-needs-v6"
+needsweb <- "https://www.epa.gov/airmarkets/national-electric-energy-data-system-needs-v6"
+
+# Most Recent Version of NEEDS:
+#  NEEDS v6 rev: 12-18-2019(5 MB)
+# Comment and Change Log rev: 12-18-2019(128 K)
+download(url = "https://www.epa.gov/sites/production/files/2019-12/needs_v6_12-18-2019.xlsx", 
+         path = ipmdir, overwrite = F)
+
 
 # NEEDS v6 Database(4 MB)  (rev: 5-31-2019)
-download(url = "https://www.epa.gov/sites/production/files/2019-06/needs_v6_may_2019_reference_case.xlsx", 
-         path = ipmdir, overwrite = F)
+# download(url = "https://www.epa.gov/sites/production/files/2019-06/needs_v6_may_2019_reference_case.xlsx", 
+#          path = ipmdir, overwrite = F)
 
 
 # Comment and Change Log(88 K) (rev: 5-31-2019)
 
 # NEEDS v6 Database(3 MB)  (rev: 11-30-2018)
-download(url = "https://www.epa.gov/sites/production/files/2019-03/needs_v6_november_2018_reference_case_0.xlsx", 
-         path = ipmdir, overwrite = F)
-
+# download(url = "https://www.epa.gov/sites/production/files/2019-03/needs_v6_november_2018_reference_case_0.xlsx", 
+#          path = ipmdir, overwrite = F)
 
 # Incremental Documentation for NOx Rates in NEEDS v6(3 pp, 44 K) (9-14-2018)
 
@@ -534,4 +547,6 @@ sapply(www, download, overwrite = F, path = ipmdir)
 
 ```
 
+### eGRID
+...
 
