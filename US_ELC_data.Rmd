@@ -1,7 +1,7 @@
 ---
 title: "Data for *usensys* models"
 author: '@olugovoy'
-date: "June 13, 2019"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   pdf_document:
     toc: yes
@@ -27,12 +27,117 @@ library(rvest)
 library(sp)
 library(tidyverse)
 
+# Function to download
+download <- function(url, path = eiadir, overwrite = FALSE) {
+  fl <- file.path(path, basename(url))
+  if(file.exists(fl) & !overwrite) {
+    # message("File '", basename(url), "' already exists.")
+    return("exists")
+  } else {
+    download.file(url = url, destfile = fl, mode = "wb") 
+    if(file.exists(fl)) {
+      return("downloaded")
+    } else {
+      return("download failed")
+    }
+  }
+}
+
+cleanread_xls <- function(path, sheet, range = NULL, skip = NULL,
+                          dbl2int = T, YNasBinary = T) {
+  # It was observed, that original `read_excel` function may confuse data formats.
+  # The 'cleanread_xls' function tries to fix this importing problem by
+  # checking if any columns have been (mistakenly) imported as binary variables,
+  # and rereading the data with forcing new guessed format.
+  # Additional options/parameters:
+  # dbl2int - converts numeric columns with no decimal part into integer
+  # YNasBinary - converts columns with only "Y", "N", and <NA> values into logical
+  cat("Reading the xls-file. ")
+  xls <- suppressWarnings(read_excel(path, sheet, range, skip = skip))
+  col_type <- sapply(xls, class)
+  # browser()
+  cat("Checking types of columns.")
+  if (any(col_type == "logical")) { # reimport
+    cat("\n")
+    message("Rereading the file, correcting types of columns.")
+    col_type[col_type == "character"] <- "text"
+    col_type[col_type == "logical"] <- "text"
+    xls <- read_excel(path, sheet, range, skip = skip, col_types = col_type)
+  } else {
+    cat(" All OK. ")
+  }
+  cat("done.")
+  if (dbl2int) xls <- dbl2int(xls)
+  if (YNasBinary) xls <- YN2binary(xls)
+  xls
+}
+
+dbl2int <- function(x) {
+  # coersing unneccesary doubles into integers
+  stopifnot(any(class(x) == "data.frame"))
+  ii <- sapply(x, is.double)
+  # browser()
+  for (i in (1:dim(x)[2])[ii]) {
+    if (sum(x[[i]] - floor(x[[i]]), na.rm = T) == 0) x[[i]] <- as.integer(x[[i]])
+  }
+  x
+}
+
+YN2binary <- function(x) {
+  # coersing columnds with "Y" and "N" values into logical
+  stopifnot(any(class(x) == "data.frame"))
+  ii <- sapply(x, is.character)
+  # browser()
+  for (i in (1:dim(x)[2])[ii]) {
+    # Check values
+    uval <- unique(x[[i]])
+    if (length(uval) <= 4) {
+      if (all(toupper(uval) %in% c("N","Y","X",NA))) {
+        # browser()
+        newx <- rep(NA, length(x[[i]]))
+        newx[x[[i]] == "Y"] <- TRUE
+        newx[x[[i]] == "N"] <- FALSE
+        newx[x[[i]] == "X"] <- NA
+        x[i] <- as.logical(newx)
+      }
+    }
+  }
+  x
+}
+
+clean_names <- function(x) {
+  # Replaces special caracters in names of x
+  nx <- names(x) %>%
+    str_replace_all("\r\n", "_") %>%
+    str_replace_all("\r", "_") %>%
+    str_replace_all("\n", "_") %>%
+    str_replace_all(" ", "_") %>%
+    str_replace_all("__", "_") %>%
+    str_replace_all("\\$", "USD") %>%
+    str_replace_all("/", "_") %>%
+    str_replace_all("\\?", "") %>%
+    str_replace_all("\\(", "") %>%
+    str_replace_all("\\)", "")
+  names(x) <- nx
+  x
+}
+
 
 ```
 
 # Info
 
-The purpose of the code below is to acquire and preprocess US electric power sector data from EIA, EPA, and other sources. The final processed data, which is required to run USENSYS model, is stored in the '/data' directory in '.RData' format in the model working directory. It is not required to run scripts in this file to be able to run all the versions of USENSYS, available on GitHub. The code below is provided for reference, and in order to be able to change the aggregation procedure.
+The purpose of the code below is to acquire and preprocess US electric power sector data from EIA, EPA, and other sources. The final processed data, which is required to run USENSYS model, is stored in the '/data' directory in '.RData' format in the model working directory. It is not required to run scripts in this file to be able to run all the versions of USENSYS, available on GitHub. The code below is provided for the reference.
+
+## Changelog
+**April, 2020**   
+- pre-processing data for the USENSYS-IPM  
+- updated download/read functions  
+
+...
+
+**June 13, 2019**  
+- initical commit, functions to webscrapp, download, and preprocess the data.  
 
 # Obtaining EIA data 
 ## By states
@@ -82,21 +187,6 @@ www$financewogen_annual.xls <- "https://www.eia.gov/electricity/data/state/finan
 www$generation_monthly.xlsx <- "https://www.eia.gov/electricity/data/state/generation_monthly.xlsx"
 # 2001 - Present	Fossil Fuel Consumption for Electricity Generation by Year, Industry Type and State2	
 www$consumption_monthly.xlsx <- "https://www.eia.gov/electricity/data/state/consumption_monthly.xlsx"}
-
-download <- function(url, path = eiadir, overwrite = FALSE) {
-  fl <- file.path(path, basename(url))
-  if(file.exists(fl) & !overwrite) {
-    # message("File '", basename(url), "' already exists.")
-    return("exists")
-  } else {
-    download.file(url = url, destfile = fl, mode = "wb") 
-    if(file.exists(fl)) {
-      return("downloaded")
-    } else {
-      return("download failed")
-    }
-  }
-}
 
 sapply(www, download, overwrite = F)
 
@@ -191,66 +281,12 @@ for (f in fls[zz]) {
 }
 
 # dirname <- gsub("\\.zip$", "", fls[1])
-dbl2int <- function(x) {
-  # coersing unneccesary doubles into integers
-  stopifnot(any(class(x) == "data.frame"))
-  ii <- sapply(x, is.double)
-  # browser()
-  for (i in (1:dim(x)[2])[ii]) {
-    if (sum(x[[i]] - floor(x[[i]]), na.rm = T) == 0) x[[i]] <- as.integer(x[[i]])
-  }
-  x
-}
-
-YN2binary <- function(x) {
-  # coersing columnds with Y or N data into logical
-  stopifnot(any(class(x) == "data.frame"))
-  ii <- sapply(x, is.character)
-  # browser()
-  for (i in (1:dim(x)[2])[ii]) {
-    # Check values
-    uval <- unique(x[[i]])
-    if (length(uval) <= 4) {
-      if (all(toupper(uval) %in% c("N","Y","X",NA))) {
-        # browser()
-        newx <- rep(NA, length(x[[i]]))
-        newx[x[[i]] == "Y"] <- TRUE
-        newx[x[[i]] == "N"] <- FALSE
-        newx[x[[i]] == "X"] <- NA
-        x[i] <- as.logical(newx)
-      }
-    }
-  }
-  x
-}
 
 ```
 
 Reading xls(x) files  
 Note: reasing from Excel files should be supervised and adjusted in case of any updates of the files on EIA website. Also may not work as expected on some OS/platforms.
 ```{r}
-cleanread_xls <- function(path, sheet, range, dbl2int = T, YNasBinary = T) {
-  # It was obcerved, that original `read_excel` function may confuse data formats.
-  # The 'cleanread_xls' function tries to fix this importing problem by
-  # checking if any columns have been (mistakenly) imported as binary variables,
-  # redeading the data with forced format.
-  # Additional options/parameters:
-  # dbl2int - convert numeric columns with no decimal part into integer
-  # YNasBinary - convert columns with only "Y", "N", and <NA> values into logical
-  xls <- read_excel(path, sheet, range)
-  col_type <- sapply(xls, class)
-  # browser()
-  if (any(col_type == "logical")) { # reimport
-    message("Rereading the xls-file, forcing out logical columns.")
-    col_type[col_type == "character"] <- "text"
-    col_type[col_type == "logical"] <- "text"
-    xls <- read_excel(path, sheet, range, col_types = col_type)
-  }
-  if (dbl2int) xls <- dbl2int(xls)
-  if (YNasBinary) xls <- YN2binary(xls)
-  xls
-}
-
 elc_pp <- cleanread_xls(file.path(eiadir, "eia8602018/2___Plant_Y2018.xlsx"),
                       sheet = "Plant",
                       range = "A2:AP10982")
@@ -309,23 +345,6 @@ unique(aa$month)
 elc_genfue_m <- select(aa, `Plant Id`, YEAR, month, variable, value)
 
 elc_genfue <- left_join(elc_genfue_m, select(elc_genfue_y, -starts_with("Reserved")))
-
-clean_names <- function(x) {
-  # Replace special caracters in names of the data columns
-  nx <- names(x) %>%
-    str_replace_all("\r\n", "_") %>%
-    str_replace_all("\r", "_") %>%
-    str_replace_all("\n", "_") %>%
-    str_replace_all(" ", "_") %>%
-    str_replace_all("__", "_") %>%
-    str_replace_all("\\$", "USD") %>%
-    str_replace_all("/", "_") %>%
-    str_replace_all("\\?", "") %>%
-    str_replace_all("\\(", "") %>%
-    str_replace_all("\\)", "")
-  names(x) <- nx
-  x
-}
 
 elc_genfue <- clean_names(elc_genfue)
 names(elc_genfue)
@@ -444,8 +463,9 @@ coa_sup_agg <- coa_sup %>%
 
 coa_type_names <- c(B = "Bituminous", S = "Subbituminous", L = "Lignite")
 coa_sup_agg$Coal_Type_Long <- plyr::revalue(coa_sup_agg$Coal_Type, coa_type_names)
+save(coa_sup_agg, coa_sup, file = file.path(ipmdir, "coal_supply.RData"))
 # write_csv(coa_sup_agg, path = "tmp/coa_sup_agg.csv")
-write_tsv(coa_sup_agg, path = "tmp/coa_sup_agg.tab")
+# write_tsv(coa_sup_agg, path = "tmp/coa_sup_agg.tab")
 
 ```
 
@@ -481,8 +501,11 @@ all(unique(gas_sup_basis$Year) == unique(gas_sup_avr$Year)) # Check
 gas_sup_byreg <- full_join(gas_sup_basis, gas_sup_avr)
 unique(gas_sup_byreg$IPM_Region)
 
-write_tsv(gas_sup_avr, path = "tmp/gas_sup_avr.tab")
-write_tsv(gas_sup_byreg, path = "tmp/gas_sup_byreg.tab")
+save(gas_sup_avr, gas_sup_byreg, gas_sup_curves, gas_sup_basis,
+     file = file.path(ipmdir, "gas_supply.RData"))
+
+# write_tsv(gas_sup_avr, path = "tmp/gas_sup_avr.tab")
+# write_tsv(gas_sup_byreg, path = "tmp/gas_sup_byreg.tab")
 
 
 ```
@@ -491,7 +514,7 @@ write_tsv(gas_sup_byreg, path = "tmp/gas_sup_byreg.tab")
 ### NEEDS v6 Database
 National Electric Energy Data System (NEEDS) v6
 <https://www.epa.gov/airmarkets/national-electric-energy-data-system-needs-v6>
-Accessed: Feb 13, 2020
+Accessed: Apr 28, 2020
 
 The National Electric Energy Data System or “NEEDS” database contains the generation unit records used to construct the "model" plants that represent existing and planned/committed units in EPA modeling applications of IPM. NEEDS includes basic geographic, operating, air emissions, and other data on these generating units. NEEDS v6 is a complete bottom-up update for EPA's new power sector modeling platform v6.  For a description of the sources used in preparing NEEDS v6, see Documentation, Chapter 4: Generating Resources.
 
@@ -500,9 +523,9 @@ The National Electric Energy Data System or “NEEDS” database contains the ge
 needsweb <- "https://www.epa.gov/airmarkets/national-electric-energy-data-system-needs-v6"
 
 # Most Recent Version of NEEDS:
-#  NEEDS v6 rev: 12-18-2019(5 MB)
-# Comment and Change Log rev: 12-18-2019(128 K)
-download(url = "https://www.epa.gov/sites/production/files/2019-12/needs_v6_12-18-2019.xlsx", 
+# NEEDS v6 rev: 3-26-2020(5 MB)
+# Comment and Change Log rev: 3-26-2020(142 K)
+download(url = "https://www.epa.gov/sites/production/files/2020-04/needs_v6_03-26-2020.xlsx", 
          path = ipmdir, overwrite = F)
 
 
@@ -541,12 +564,415 @@ scrap_needs <- function(weblink, filepatern = "([a-zA-Z0-9_]+.zip)|([a-zA-Z0-9_]
   }
   links
 }
-www <- scrap_ipm(needsweb)
+www <- scrap_needs(needsweb)
 sapply(www, download, overwrite = F, path = ipmdir)
 
 
 ```
 
+```{r}
+needs <- cleanread_xls(file.path(ipmdir, "needs_v6_03-26-2020.xlsx"),
+                      sheet = "NEEDS v6_active",
+                      range = "A1:AX18252")
+col_type <- sapply(needs, class)
+unique(col_type)
+needs
+names(needs)
+save(needs, file = file.path(ipmdir, "NEEDS_v6_active.RData"))
+
+```
+
+
+### Wind potential
+Table 4-38 Onshore Regional Potential Wind Capacity (MW) by TRG and Cost Class in EPA Platform v6
+```{r}
+tbl_4_38_pth <- file.path(
+  ipmdir,
+  "table_4-38_onshore_regional_potential_wind_capacity_mw_by_trg_and_cost_class_in_epa_platform_v6.xlsx")
+file.exists(tbl_4_38_pth)
+
+rename_fill_tbl <- function(tbl) {
+  nms <- names(tbl)
+  nms <- c(nms[1:3], paste0("Cost_Class_", 1:(ncol(tbl)-3)))
+  names(tbl) <- nms
+  tbl <- tbl[-1,]
+  
+  # fill-in NAs
+  r_1 <- NA; s_1 <- NA
+  for(i in 1:nrow(tbl)) {
+    r <- tbl$IPM_Region[i]
+    s <- tbl$State[i]
+    if (!is.na(r)) r_1 <- r else tbl$IPM_Region[i] <- r_1
+    if (!is.na(s)) s_1 <- s else tbl$State[i] <- s_1
+  }
+  tbl
+}
+
+reshape_MW_tbl <- function(tbl, val_to_name = "MW") {
+  tbl <- tbl %>% 
+  pivot_longer(cols = starts_with("Cost_Class"), names_prefix = "Cost_Class_", 
+               names_to = "Cost_Class", values_to = val_to_name) %>%
+  mutate(Cost_Class = as.integer(Cost_Class))
+  tbl
+}
+
+onshore_wind_potential <- cleanread_xls(tbl_4_38_pth, "Table 4-38", skip = 3) %>%
+  clean_names() %>% rename_fill_tbl() %>% reshape_MW_tbl()
+onshore_wind_potential
+
+save(onshore_wind_potential,
+     file = file.path(ipmdir, "onshore_wind_potential.RData"))
+rm(tbl_4_38_pth, onshore_wind_potential)
+
+```
+
+
+### Wind Generation Profiles 
+in EPA Platform v6 (kWh of Generation per MW of Capacity)
+```{r}
+tbl_4_39_pth <- file.path(
+  ipmdir, "table_4-39_wind_generation_profiles_in_epa_platform_v6",
+  "Table 4-39 Wind Generation Profiles in EPA Platform v6.xlsx")
+file.exists(tbl_4_39_pth)
+# a <- read_excel(tbl_4_39_pth, "Onshore", skip = 2, col_names = T)
+
+reshape_genpro_tbl <- function(x) {
+  pivot_longer(x, cols = starts_with("Hour"), names_prefix = "Hour", 
+               names_to = "hour", values_to = "kWh_per_MW") %>%
+  mutate(hour = as.integer(hour) - 1L)
+}
+
+wind_onshore <- cleanread_xls(tbl_4_39_pth, "Onshore", skip = 3) %>%
+  clean_names() %>% reshape_genpro_tbl()
+
+wind_offshore_shallow <- cleanread_xls(
+  tbl_4_39_pth, "Offshore Shallow", skip = 3) %>%
+  clean_names() %>% reshape_genpro_tbl()
+
+wind_offshore_middepth <- cleanread_xls(
+  tbl_4_39_pth, "Offshore Mid-Depth", skip = 3) %>%
+  clean_names() %>% reshape_genpro_tbl()
+
+wind_offshore_deep <- cleanread_xls(
+  tbl_4_39_pth, "Offshore Deep", skip = 3) %>%
+  clean_names() %>% reshape_genpro_tbl()
+
+save(wind_onshore, wind_offshore_shallow, 
+     wind_offshore_middepth, wind_offshore_deep,
+     file = file.path(ipmdir, "wind_profiles.RData"))
+rm(tbl_4_39_pth, wind_onshore, wind_offshore_shallow, 
+   wind_offshore_middepth, wind_offshore_deep)
+
+```
+
+### Wind Capital Cost Adder
+Table 4-40 Capital Cost Adder (2016$/kW) for New Onshore Wind Plants by Resource and Cost Class in EPA Platform v6
+```{r}
+tbl_4_40_pth <- file.path(
+  ipmdir,
+  "table_4-40_capital_cost_adder_for_new_onshore_wind_plants_in_epa_platform_v6.xlsx")
+file.exists(tbl_4_40_pth)
+
+onshore_invcost_adder <- cleanread_xls(tbl_4_40_pth, "Table 4-40", skip = 3) %>%
+  clean_names() %>% rename_fill_tbl() %>% 
+  reshape_MW_tbl(val_to_name = "USD_per_kW")
+onshore_invcost_adder  
+
+save(onshore_invcost_adder,
+     file = file.path(ipmdir, "onshore_invcost_adder.RData"))
+rm(tbl_4_40_pth, onshore_invcost_adder)
+
+```
+
+### Solar potential
+#### Photovoltaic
+Table 4-41 Solar Photovoltaic Regional Potential Capacity (MW) by Resource and Cost Class in EPA Platform v6
+```{r}
+tbl_4_41_pth <- file.path(
+  ipmdir,
+  "table_4-41_solar_photovoltaic_regional_potential_capacity_mw_by_resource_and_cost_class_in_epa_platform_v6.xlsx")
+
+if (file.exists(tbl_4_41_pth)) {
+  solar_pv_potential <- cleanread_xls(tbl_4_41_pth, "Table 4-41", skip = 3) %>%
+    clean_names() %>% rename_fill_tbl() %>% reshape_MW_tbl()
+  
+  save(solar_pv_potential,
+       file = file.path(ipmdir, "solar_pv_potential.RData"))
+  rm(tbl_4_41_pth, solar_pv_potential)
+}
+
+```
+
+#### Solar Thermal
+Table 4-42 Solar Thermal Regional Potential Capacity (MW) by Resource and Cost Class in EPA Platform v6
+```{r}
+tbl_4_42_pth <- file.path(
+  ipmdir,
+  "table_4-42_solar_thermal_regional_potential_capacity_mw_by_resource_and_cost_class_in_epa_platform_v6.xlsx")
+
+if (file.exists(tbl_4_42_pth)) {
+  solar_th_potential <- cleanread_xls(tbl_4_42_pth, "Table 4-42", skip = 3) %>%
+  clean_names() %>% rename_fill_tbl() %>% reshape_MW_tbl()
+  
+  save(solar_th_potential,
+       file = file.path(ipmdir, "solar_th_potential.RData"))
+  rm(tbl_4_42_pth, solar_th_potential)
+}
+
+```
+
+### Solar generation profiles
+Table 4-43 Solar Photovoltaic Generation Profiles in EPA Platform v6 (kWh of Generation per MW of Capacity)
+```{r}
+tbl_4_43_pth <- file.path(
+  ipmdir,
+  "table_4-43_solar_photovoltaic_generation_profiles_in_epa_platform_v6.xlsx")
+
+if (file.exists(tbl_4_43_pth)) {
+  solar_profiles <- cleanread_xls(tbl_4_43_pth, "Table 4-43", skip = 3) %>%
+    clean_names() %>% reshape_genpro_tbl()
+  solar_profiles
+  
+  save(solar_profiles, file = file.path(ipmdir, "solar_profiles.RData"))
+  rm(tbl_4_43_pth, solar_profiles)
+}
+
+```
+
+### Solar Capital costs adder
+#### Photovoltaic
+Table 4-44 Solar Photovoltaic Regional Capital Cost Adder (2016$/kW) for Potential  Units by Resource and Cost Class in EPA Platform v6
+```{r}
+tbl_4_44_pth <- file.path(
+  ipmdir,
+  "table_4-44_capital_cost_adder_for_new_solar_pv_plants_in_epa_platform_v6.xlsx")
+file.exists(tbl_4_44_pth)
+
+solpv_invcost_adder <- cleanread_xls(tbl_4_44_pth, "Table 4-44", skip = 3) %>%
+  clean_names() %>% rename_fill_tbl() %>% 
+  reshape_MW_tbl(val_to_name = "USD_per_kW")
+solpv_invcost_adder  
+
+save(solpv_invcost_adder,
+     file = file.path(ipmdir, "solpv_invcost_adder.RData"))
+rm(tbl_4_44_pth, solpv_invcost_adder)
+
+```
+
+#### Solar Thermal
+Table 4-45 Solar Thermal Regional Capital Cost Adder (2016$/kW) for Potential Units by Resource and Cost Class in EPA Platform v6
+```{r}
+tbl_4_45_pth <- file.path(
+  ipmdir,
+  "table_4-45_capital_cost_adder_for_new_solar_thermal_plants_in_epa_platform_v6.xlsx")
+file.exists(tbl_4_45_pth)
+
+solth_invcost_adder <- cleanread_xls(tbl_4_45_pth, "Table 4-45", skip = 3) %>%
+  clean_names() %>% rename_fill_tbl() %>% 
+  reshape_MW_tbl(val_to_name = "USD_per_kW")
+solth_invcost_adder  
+
+save(solth_invcost_adder,
+     file = file.path(ipmdir, "solth_invcost_adder.RData"))
+rm(tbl_4_45_pth, solth_invcost_adder)
+
+```
+
+
+### Load duration curves
+Table 2-2 2021 Load Duration Curves Used in EPA Platform v6
+```{r}
+tbl_2_2_pth <- file.path(
+  ipmdir,
+  "table_2-2_load_duration_curves_used_in_epa_platform_v6.xlsx")
+file.exists(tbl_2_2_pth)
+
+load_curves <- cleanread_xls(tbl_2_2_pth, "Table 2-2", skip = 3) %>%
+  clean_names() %>%
+  pivot_longer(cols = starts_with("Hour"), names_prefix = "Hour_", 
+               names_to = "hour", values_to = "MWh") %>%
+  mutate(hour = as.integer(hour) - 1L)
+
+save(load_curves, file = file.path(ipmdir, "load_curves.RData"))
+rm(tbl_2_2_pth, load_curves)
+
+```
+
+### Transmission capabilities  
+Table 3-21 Annual Transmission Capabilities of U.S. Model Regions in EPA Platform v6 - 2021
+```{r}
+tbl_3_21_pth <- file.path(
+  ipmdir,
+  "table_3-21_annual_transmission_capabilities_of_u.s._model_regions_in_epa_platform_v6_-_2021.xlsx")
+file.exists(tbl_3_21_pth)
+
+transmission <- cleanread_xls(tbl_3_21_pth, "Table 3-21", skip = 3) %>%
+  clean_names()
+
+# fill-in NAs in "from" column
+transmission$From2 <- transmission$From
+v_1 <- NA
+for(i in 1:nrow(transmission)) {
+  v <- transmission$From[i]
+  if (!is.na(v)) v_1 <- v
+  transmission$From2[i] <- v_1
+}
+save(transmission, file = file.path(ipmdir, "transmission.RData"))
+rm(tbl_3_21_pth, transmission)
+
+```
+
+
 ### eGRID
 ...
+
+# NREL  
+<https://atb.nrel.gov/electricity/2018/summary.html>  
+<https://atb.nrel.gov/electricity/2019/data.html>
+(included in PowerGenome database)  
+
+# FERC  
+<https://www.ferc.gov/docs-filing/forms/form-1/data.asp>    
+(included in PUDL database)  
+
+# PUDL  
+[The Public Utility Data Liberation (PUDL) project](https://catalyst.coop/pudl/) is an assembly of EIA, EPA, and FERC forms, standardized and documented.  
+
+# PowerGenome  
+<https://github.com/gschivley/PowerGenome>  
+A tool to create input files for power system optimization models with an integrated database (a selection from PUDL (EIA, EPA, FERC), NREL, and other sources).  
+The script in the chunk below reads PowerGenome SQLite-database, re-saves it in R-format, also takes a glimpse at some tables in the database. To run the script, download the *pudl_updated.sqlite* (see the link at <https://github.com/gschivley/PowerGenome>). 
+
+```{r, eval=FALSE, include=FALSE}
+# Try PowerGenome 
+if (file.exists("tmp/PowerGenome.RData")) {
+  load("tmp/PowerGenome.RData")
+} else {
+  if (!dir.exists("data/PowerGenome/")) dir.create("data/PowerGenome/")
+  if (!dir.exists("tmp/")) dir.create("tmp/")
+
+  pg <- file.path("<PATH TO THE POWERGENOME DATABASE>/pudl_updated.sqlite")
+  file.exists(pg)
+  library(DBI)
+  library("RSQLite")
+  # Create an ephemeral in-memory RSQLite database
+  con <- dbConnect(RSQLite::SQLite(), pg)
+  con
+  dbListTables(con)
+  
+  db2list <- function(db, tables = NULL, asTibble = TRUE, verbose = TRUE) {
+    if (is.null(tables)) tables = dbListTables(db)
+    t0 <- Sys.time()
+    ll <- list()
+    for (x in tables) {
+      cat("reading ", x)
+      y <- dbReadTable(db, x)
+      cat(",", size(y), "\b,", round(Sys.time() - t0, 1), "\bs\n")
+      if (asTibble) y <- as_tibble(y)
+      ll[[x]] <- y
+    }
+    ll
+  }
+
+  db <- db2list(con, dbListTables(con))
+  size(db)
+  names(db)
+  length(db)
+  dbDisconnect(con)
+  save(db, file = "tmp/PowerGenome.RData") # the data will not be redistributed
+  
+}
+
+# IPM tables ####
+names(db)[grepl("ipm", names(db), T)]
+
+# Regions ####
+unique(db$plant_region_map_epaipm$region)
+unique(db$transmission_single_epaipm$region_from) # 78 IPM regions (67 US + 11 CA)
+unique(db$load_curves_epaipm$region_id_epaipm)
+unique(db$plants_entity_eia$nerc_region) # plant_id_eia, state, county, NERC, balancing, GIS
+unique(db$regions_entity_epaipm$region_id_epaipm) # IMP 78 regions
+reg_names_ipm78 <- db$regions_entity_epaipm$region_id_epaipm
+save(reg_names_ipm78, file = "data/PowerGenome/regions_entity_epaipm.RData")
+
+# Demand ####
+## Load curves ###
+db$load_curves_epaipm
+unique(db$load_curves_epaipm$region_id_epaipm)
+unique(db$load_curves_epaipm$month)
+unique(db$load_curves_epaipm$hour)
+unique(db$load_curves_epaipm$day_of_year)
+length(unique(db$load_curves_epaipm$time_index))
+
+# Commodities ####
+db$fuel_type_aer_eia923 #18
+db$energy_source_eia923 #20
+db$fuel_type_eia923 #42
+unique(db$generation_fuel_eia923$fuel_type)
+unique(db$generation_fuel_eia923$fuel_type_code_pudl)
+unique(db$generation_fuel_eia923$fuel_type_code_aer)
+unique(db$fuel_receipts_costs_eia923$fuel_group_code)
+unique(db$fuel_receipts_costs_eia923$fuel_group_code_simple)
+unique(db$fuel_receipts_costs_eia923$energy_source_code)
+
+# Technologies ####
+## boilers and generators
+db$prime_movers_eia923 # movers codes and names
+db$boiler_fuel_eia923  %>% as.data.frame() %>% head() # fuels consumed by months
+db$generation_eia923 # generation by months
+db$generation_fuel_eia923 %>% as.data.frame() %>% head() # both by months
+db$generators_eia860 %>% as.data.frame() %>% head() # capacity
+
+## plants meta info
+db$generators_entity_eia %>% as.data.frame() %>% head() # operating_date
+db$plant_region_map_epaipm # plants_id_eia by IMP regions
+db$plants_eia #  eia vs pudl
+db$plants_eia860 %>% as.data.frame() %>% head() # plants techs detailes
+db$plants_entity_eia %>% as.data.frame() %>% head() # GIS
+db$plants_ferc1 # plants vs. utility
+db$plants_hydro_ferc1 %>% as.data.frame() %>% head() # invcost
+db$plants_pumped_storage_ferc1 %>% as.data.frame() %>% head() # invcost
+db$plants_small_ferc1 %>% as.data.frame() %>% head() # invcost
+db$plants_steam_ferc1 %>% as.data.frame() %>% head() # invcost
+db$plants_pudl
+## New techs ####
+db$technology_costs_nrelatb %>% as.data.frame() %>% head()
+db$technology_heat_rates_nrelatb
+
+## Emissions ####
+db$hourly_emissions_epacems %>% as.data.frame() %>% head()
+summary(db$hourly_emissions_epacems$unit_id_epa)
+summary(is.na(db$hourly_emissions_epacems$facility_id))
+
+## IDs ####
+db$boiler_generator_assn_eia860
+db$boilers_entity_eia
+unique(db$generators_eia860$technology_description)
+
+# Supply ####
+head(db$fuel_ferc1) %>% as.data.frame()
+head(db$fuel_receipts_costs_eia923) %>% as.data.frame()
+db$transport_modes_eia923
+
+# Transmission ####
+db$transmission_single_epaipm
+unique(db$transmission_single_epaipm$region_from) # 78 regions 
+unique(db$transmission_single_epaipm$region_to)
+
+# Misc ####
+db$ferc_depreciation_lines %>% as.data.frame()
+db$coalmine_eia923
+db$ferc_accounts
+db$ownership_eia860 %>% as.data.frame() %>% head()
+db$plant_in_service_ferc1 %>% as.data.frame() %>% head()
+db$purchased_power_ferc1 %>% as.data.frame() %>% head()
+## Utilities
+db$utilities_eia
+db$utilities_eia860
+db$utilities_entity_eia
+db$utilities_ferc1
+db$utilities_pudl
+db$utility_plant_assn
+
+```
 

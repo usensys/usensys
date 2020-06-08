@@ -8,10 +8,6 @@ Drafting US energy system model using [**R**](https://www.r-project.org/) and [*
 Large files are stored with **Git Large Files Storage**. To download all the data and the model output files, install *git lfs* (https://git-lfs.github.com).  
 **NOTE** The LFS has monthly limits, below is alternative solution to download the model data.  
 
-## (!) Alternative/temporary solution for large data files
-Data download link: [usensys-balancing-model-data](https://www.dropbox.com/transfer/AAAAAP1eJGr_BoOzVpyeuxur8jcZNegmE8DOjFZfuQFDW56K9rRyMxo).
-
-
 ## Electric power sector  
 There will be two main versions of the sector:  
 * capacity expansion (with focus on long-term planning)  

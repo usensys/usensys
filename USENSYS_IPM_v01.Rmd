@@ -1,0 +1,1904 @@
+---
+title: "USENSYS_IPM_v01"
+author: '@olugovoy'
+date: "4/28/2020"
+output:
+  pdf_document: default
+  html_document: 
+    toc: yes
+---
+
+# Info  
+The first cut of IPM reproduction in USENSYS.  
+Features:  
+- 78 regions (67 US and 11 Canadian)  
+- 8760 hours, 1 year  
+- IMP load curve and the full set of generation profile of renewables  
+- Alternative MERRA-2 data for renewables  
+- criteria pollutans are not implemented yet  
+- basic scenarios require ~20-30Gb RAM and up to 1 hour to solve (with GAMS/CPLEX).  
+
+Main functions of the script:  
+- preprocess, aggregate data for the model  
+- testing the model on 1-year data  
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(energyRt)
+library(ggrepel)
+library(sf)
+
+
+is.nan.data.frame <- function(x) do.call(cbind, lapply(x, is.nan))
+is.infinite.data.frame <- function(x) do.call(cbind, lapply(x, is.infinite))
+
+ipm2reg <- function(x) {gsub("&|-", "", x)}
+
+if(!dir.exists("fig/IPM")) dir.create("fig/IPM", recursive = T)
+fig.path <- "fig/IPM"
+
+scl1 <- 1.875
+dpi <- 160*scl1
+# FHD
+png.width = scl1*1920/dpi
+png.height = scl1*1080/dpi
+# 4K
+# png.width = scl1*3840/dpi
+# png.height = scl1*2160/dpi
+
+
+usensys_IPM_convention <- function(dat) {
+# renames columns and region-names to the USENSYS-IPM convention
+# (dropping special characters)
+  f <- function(from, to, FUN = NULL) {
+    # browser()
+    if (!is.null(dat[[from]])) {
+      # vars <- list(); vars[[from]] = to
+      names(from) <- to
+      dat <<- rename(dat, !!from)
+      if (!is.null(FUN)) {
+        dat[[to]] <<- eval(call(FUN, dat[[to]]))
+      }
+    }
+  }
+  f("Region_Name", "region", "ipm2reg")
+  f("Region", "region", "ipm2reg")
+  f("IPM_Region", "region", "ipm2reg")
+  f("State_Name", "state", "as.character")
+  f("State", "state", "as.character")
+  f("Month", "month", "as.integer")
+  f("Day", "yday", "as.integer") # ToDo: add check for the range
+  f("Day_Of_Month", "day", "as.integer")
+  f("Day_of_Month", "day", "as.integer")
+  f("Season", "season", "as.character")
+  f("Resource_Class", "res_class", "as.integer")
+  f("Cost_Class", "cost_class", "as.integer")
+  dat
+}
+
+varom2fixom <- function(varom = 0, afa = 1, cap2act = 24 * 365, convert_factor = 0.001) {
+  # converts USD/MWh to USD/MW of capacity (when convert_factor = 1)
+  # varom - variable costs aka USD/MWh
+  # afa - annual availability/capacity factor (% of year)
+  # cap2act - capacity to activity parameter
+  # convert_factor = convert("USD/MWh", "MUSD/GWh") by default
+  varom * cap2act * afa * convert_factor
+}
+
+fixom2varom <- function(fixom = 0, afa = 1, cap2act = 24 * 365, convert_factor = 1e3) {
+  # converts USD/MW to USD/MWh (when convert_factor = 1)
+  #          MUSD/GW to USD/MWh (when convert_factor = 1e3)
+  # varom - variable costs aka USD/MWh
+  # afa - annual availability/capacity factor (% of year)
+  # cap2act - capacity to activity parameter
+  # convert_factor = convert("USD/MWh", "MUSD/GWh") by default
+  fixom / (cap2act * afa) * convert_factor
+}
+
+if (F) {
+  convert("USD/MWh", "USD/kWh")
+  convert("USD/MWh", "MUSD/GWh")
+  convert("USD/kW", "MUSD/GW")
+  varom2fixom(10) # 1 cent per kWh to MUSD/GW (== USD/kW)
+  fixom2varom(87.6) # X MUSD/GW to USD/MWh
+}
+
+
+```
+
+# Overview  
+- base year with 1-to-1 representation of units in the way they are modeled in IPM.  
+- base year with 1-to-1 representation of boilers with several attached generators and multi-fuels.
+
+
+# Data
+```{r IPM_generators, results=FALSE}
+
+(load("data/EPA/IPM/NEEDS_v6_active.RData"))
+
+# if (F) { # Quick look at the data
+  names(needs)
+  dim(needs)
+  (nIDs <- length(unique(needs$UniqueID_Final))) # number of unique IDs (boiler+generator)
+  (nPlants <-  length(unique(needs$`Plant Name`))) # number of plants
+  length(unique(needs$`ORIS Plant Code`))
+  (PlantTypes <- unique(needs$PlantType))
+  CombTypes <- unique(needs$`Combustion Turbine/IC Engine`)
+  CombTypes <- CombTypes[!is.na(CombTypes)]
+  CombTypes
+  pCap <- sum(needs$`Capacity (MW)`, na.rm = T)
+  (fuels <- unique(needs$`Modeled Fuels`))
+  (nFuels <- length(fuels))
+  needs_regions <- unique(needs$`Region Name`)
+  nNeeds_reg <- length(needs_regions)
+  States <- unique(needs$`State Name`)
+  nStates <- length(States)
+  Counties <- unique(needs$County)
+  nCounties <- length(Counties)
+  
+# }
+
+```
+
+# Maps
+```{r, warning=FALSE}
+(load("data/maps/ipm_usca_tiny.RData"))
+# (load("data/PowerGenome/regions_entity_epaipm.RData"))
+gis <- ipm_usca_tiny_sp
+gis@data$region <- ipm2reg(gis$IPM_Region)
+# reconvert because of 
+gis_df <- fortify(gis, region = "region") # might be some inconsistencies in simplified GIS but works
+gis_sf <- st_as_sf(gis)
+size(gis); size(gis_df);  size(gis_sf)
+
+# Names of the regions in the model and the map-data
+(reg_names <- unique(as.character(gis@data$region)))
+(reg_names_in_gis <- as.character(gis@data$region)) # if different
+(reg_names_us <- reg_names[!grepl("^CN_", reg_names)])
+(reg_names_ca <- reg_names[grepl("^CN_", reg_names)])
+
+# Number of regions
+(nreg <- length(reg_names))
+(nreg_in_gis <- length(reg_names_in_gis))
+
+reg_centers <- getCenters(gis)
+
+```
+
+# Calibration of the base-year technilogies  
+
+**IPM/NEEDS data structure:**  
+  * `r nIDs` rows of data, one row per **(boiler | generator) & unit**  
+  * Several generating units (**unit**) might be connected to one **boiler**  
+  -- `r nPlants` power plants, with `r round(pCap/1e3, 1)` GW total capacity.  
+  -- each can have several boilers/units/types of technologies.  
+  -- `r length(PlantTypes)` types of technologies:  *`r paste(PlantTypes, collapse = ", ")`*.  
+  -- _Combustion Turbines_ also separated into: *`r paste(CombTypes, collapse = ", ")`*  
+  -- thermal units have a *cogeneration* option (yes/no), types of firing, and types of bottom (dry/wet)  
+  -- `r nFuels` types of energy (__Modeled Fuels__): *`r paste((fuels), collapse = ", ")`*  
+  <!-- `r knitr::kable(matrix(fuels, ncol = 2))`   -->
+  -- `r nNeeds_reg` IPM regions in NEEDS database, `r nStates` states, `r nCounties` counties.  
+
+## Groups of technologies  
+ 
+```{r, warning=FALSE}
+needs$eff <- 1 / convert("Btu/kWh", "kWh/kWh", needs$`Heat Rate (Btu/kWh)`)
+needs$eff[is.infinite(needs$eff) | is.nan(needs$eff)] <- NA
+summary(needs$eff)
+hist(needs$eff, probability = T, col = "lightblue", n = 50)
+
+techGroups <- needs %>% 
+  group_by(
+    # `State Name`, 
+    PlantType, `Combustion Turbine/IC Engine`, `Modeled Fuels`) %>%
+  summarise(
+    units = n(),
+    GW = sum(`Capacity (MW)`, na.rm = T)/1e3,
+    eff_mean = mean(eff, na.rm = T),
+    eff_min = min(eff, na.rm = T),
+    eff_max = max(eff, na.rm = T),
+    eff_sd =  sd(eff, na.rm = T)
+    # "Mean HR Btu/kWh" = mean(`Heat Rate (Btu/kWh)`, na.rm = T),
+    # HR_min = min(`Heat Rate (Btu/kWh)`, na.rm = T),
+    # HR_max = max(`Heat Rate (Btu/kWh)`, na.rm = T),
+    # HR_sd =  sd(`Heat Rate (Btu/kWh)`, na.rm = T)
+  ) 
+
+techGroups[is.nan(techGroups) | is.infinite(techGroups)] <- NA
+
+```
+
+
+```{r, echo=FALSE}
+options(knitr.kable.NA = '-')
+knitr::kable(techGroups, digits = 2, caption = "Groups of technologies")
+```
+
+## Aggregation assumptions  
+The aggregation procedure should depend on the goals of a study. The main goal of the purposed below aggregation is to reduce the number of types of technologies and fuels to keep the model solvable.  
+
+### Groups of fuels and technologies  
+
+#### Fuels groups:  
+  -- __COA__ - all coals (Bituminous, Subbituminous, Lignite), Petroleum Coke, Fossil Waste  
+  -- __GAS__ - natural and other combustible gases  
+  -- __OIL__ - Residual Fuel Oil, Distillate Fuel Oil  
+  -- __BIO__ - Biomass  
+  -- __WST__ - MSW, Non-Fossil Waste, Landfill Gas, Tires  
+  -- __HYD__ - Hydro  
+  -- __WIN__ - Onshore Wind  
+  -- __WIF__ - Offshore Wind  
+  -- __SOL__ - Solar  
+  -- __NUC__ - Nuclear Fuel  
+  -- __GEO__ - Geothermal  
+
+For the simplification of multi-fuel cases, only one fuel is selected to represents technology, based on the type of technologies and the installed capacity.  
+
+#### Technology groups:  
+  -- __ECOA__ - all *Coal Steam* technologies, input fuel is assumed to be _COA_ group.  
+  -- __EIGC__ - IGCC, _COA_ as and input.  
+  -- __EGCC__ - Natural gas combined cycle, input fuel is assumed to be _GAS_ group.  
+  -- __EGAS__ - all "O/G Steam", natural gas, conventional turbine, fuel group _GAS_.  
+  -- __EOIL__ - all internal combustion engine technologies, assuming _OIL_ as an input.  
+  -- __ESPV__ - solar PV techs with _SOL_ as an input.  
+  -- __ECSP__ - concentrated solar power, _SOL_ as an input.  
+  -- __EWIN__ - onshore wind power plants.  
+  -- __EWIF__ - offshore wind power plants.  
+  -- __EGEO__ - geothermal power plants. 
+  -- __EWST__ - waste-fire techs  
+  -- __EHYD__ - hydro  
+  -- __ENUC__ - nuclear  
+  -- __EFCL__ - fuel cell (natural gas based)  
+  -- __STGPUM__ - pumped hydro storage  
+  -- __STGHYD__ - flow-hydro storage (to model balancing ability of hydro plants)  
+  -- __STGELC__ - other types of storages   
+
+  
+
+```{r aggregation, warning=F}
+addTechGroups <- function(dat) {
+# The function assignes particular technologies to groups (see above) and
+# adds some technological and costs parameters
+# from https://www.eia.gov/outlooks/aeo/pdf/electricity_generation.pdf, table 1b
+# or just assumed,
+  dat$cinp <- NA
+  dat$tech <- NA
+  dat$sinpeff <- NA # storage roundtrip efficiency
+  dat$weather <- NA # name of the weather-factor
+  dat$waf.fx <- NA # weather factor for renewables
+  dat$af.fx <- NA # fixed availability
+  dat$afs.up.ANNUAL <- NA # annual availability factor
+  dat$varom <- NA
+  dat$fixom <- NA
+  # BIO ####
+  ii <- grepl("(Biomass)", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "BIO"
+  dat$tech[ii] <- "EBIO"
+  dat$afs.up.ANNUAL[ii] <- 0.83
+  dat$fixom[ii] <- varom2fixom(17.22 + 39.92, 0.83) # incl capital cost
+  # dat$varom[ii] <- convert("USD/MWh", "MUSD/GWh", 36.44) # assiming fuel cost
+  # COA ####
+  ii <- grepl("(Coal Steam)|(Fossil Waste)", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "COA"
+  dat$tech[ii] <- "ECOA"
+  dat$afs.up.ANNUAL[ii] <- 0.85
+  ii <- grepl("IGCC", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "COA"
+  dat$tech[ii] <- "EIGC"
+  dat$afs.up.ANNUAL[ii] <- 0.85
+  dat$fixom[ii] <- varom2fixom(5.43 + 47.57, 0.85) # incl capital cost
+  # dat$varom[ii] <- convert("USD/MWh", "MUSD/GWh", 22.27) # assuming fuel cost
+  # GAS ####
+  ii <- grepl("Combined Cycle", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "GAS"
+  dat$tech[ii] <- "EGCC"
+  dat$afs.up.ANNUAL[ii] <- 0.87
+  dat$fixom[ii] <- varom2fixom(8.40 + 1.59, 0.87) # incl capital cost
+  # dat$varom[ii] <- convert("USD/MWh", "MUSD/GWh", 26.88) # assiming fuel cost
+  ii <- grepl("(Combustion Turbine)|(O/G Steam)", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "GAS"
+  dat$tech[ii] <- "EGAS"
+  dat$afs.up.ANNUAL[ii] <- 0.3
+  dat$fixom[ii] <- varom2fixom(16.17 + 2.65, 0.3) # incl capital cost
+  # dat$varom[ii] <- convert("USD/MWh", "MUSD/GWh", 44.33) # assiming fuel cost
+  # OIL (overwrites some GAS tech), parameters assumed == EGAS ####
+  ii <- grepl("IC Engine", dat$`Combustion Turbine/IC Engine`, ignore.case = T) 
+  dat$cinp[ii] <- "OIL"
+  dat$tech[ii] <- "EOIL"
+  dat$af.fx[ii] <- 0.3 # an assumption
+  dat$fixom[ii] <- varom2fixom(16.17 + 2.65, 0.3) # incl capital cost
+  # dat$varom[ii] <- convert("USD/MWh", "MUSD/GWh", 44.33) # assiming fuel cost
+  # Hydro ####
+  ii <- grepl("Hydro", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "HYD"
+  dat$tech[ii] <- "EHYD"
+  # dat$af.fx[ii] <- 0.59 # balancing potential is modeled as a storage below
+  dat$af.fx[ii] <- 0.4 # https://www.eia.gov/electricity/monthly/epm_table_grapher.php?t=epmt_6_07_b
+  # dat$afs.up.ANNUAL[ii] <- 0.59
+  dat$fixom[ii] <- varom2fixom(37.28 + 10.57 + 3.07, 0.59) # incl capital and varom cost
+  # dat$varom[ii] <- convert("USD/MWh", "MUSD/GWh", 3.07) # 
+  # Nuclear ####
+  ii <- grepl("Nuclear", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "NUC"
+  dat$tech[ii] <- "ENUC"
+  dat$af.fx[ii] <- 0.9
+  dat$fixom[ii] <- varom2fixom(56.12 + 15.36 + 9.06, 0.9) # incl capital and varom cost
+  # Solar ####
+  ii <- grepl("Solar PV", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "SOL"
+  dat$tech[ii] <- "ESPV"
+  dat$af.fx[ii] <- 1
+  dat$waf.fx[ii] <- 1
+  dat$weather[ii] <- paste0("AF_", dat$cinp[ii])
+  dat$fixom[ii] <- varom2fixom(26.14 + 6.00, 0.29) # incl capital cost
+  ii <- grepl("Solar Thermal", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "SOL"
+  dat$tech[ii] <- "ECSP"
+  dat$af.fx[ii] <- 1
+  dat$waf.fx[ii] <- 1 # AF is controlled by "weather factor"
+  dat$weather[ii] <- paste0("AF_", dat$cinp[ii])
+  dat$fixom[ii] <- varom2fixom(2 * (26.14 + 6.00), 0.29) # assumed == ESPV x 2
+  # Wind ####
+  ii <- grepl("Offshore Wind", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "WIF"
+  dat$tech[ii] <- "EWIF_BY"
+  dat$af.fx[ii] <- 1.
+  dat$waf.fx[ii] <- 1. # AF is controlled by "weather factor"
+  dat$weather[ii] <- paste0("AF_", dat$cinp[ii])
+  dat$fixom[ii] <- varom2fixom(29.63 + 7.52, 0.4) # incl capital cost
+  ii <- grepl("Onshore Wind", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "WIN"
+  dat$tech[ii] <- "EWIN_BY"
+  dat$af.fx[ii] <- 1.
+  dat$waf.fx[ii] <- 1. # AF is controlled by "weather factor"
+  dat$weather[ii] <- paste0("AF_", dat$cinp[ii])
+  dat$fixom[ii] <- varom2fixom(90.95 + 28.65, 0.44) # incl capital cost
+  # MSW, Landfill Gas, Tires ####
+  ii <- grepl("(Municipal Solid Waste)|(Landfill Gas)|(Non-Fossil Waste)|(Tires)", 
+              dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "WST"
+  dat$tech[ii] <- "EWST"
+  dat$af.fx[ii] <- 0.83 # assumed - similar to BIO
+  dat$fixom[ii] <- varom2fixom(17.22 + 39.92, 0.83) # assumed - similar to BIO
+  # Geothermal ####
+  ii <- grepl("Geothermal", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "GEO"
+  dat$tech[ii] <- "EGEO"
+  dat$af.fx[ii] <- 0.9
+  dat$fixom[ii] <- varom2fixom(20.38 + 14.48 + 1.16, 0.9) # incl capital cost
+  # Fuel Cell  ####
+  ii <- grepl("Fuel Cell", dat$PlantType, ignore.case = T) 
+  dat$cinp[ii] <- "GAS"
+  dat$tech[ii] <- "EFCL"
+  dat$af.fx[ii] <- 0.9 # very small capacity, fixes for simplicity
+  # Storage ####
+  ii <- grepl("Pumped Storage", dat$PlantType, ignore.case = T) 
+  # dat$cinp[ii] <- "GAS"
+  dat$tech[ii] <- "STGPUM"
+  dat$sinpeff[ii] <- 0.8 # assumption
+  ii <- grepl("Energy Storage", dat$PlantType, ignore.case = T) 
+  # dat$cinp[ii] <- "GAS"
+  dat$sinpeff[ii] <- 0.85 # assumption
+  dat$tech[ii] <- "STGELC"
+  dat
+}
+
+aggTechGroups <- function(dat) {
+  # aggregate technology-groups
+  suppressWarnings(
+    dat <- summarise(dat,
+      units = n(),
+      GW = sum(`Capacity (MW)`, na.rm = T) / 1e3,
+      eff_mean = mean(eff, na.rm = T),
+      eff_min = min(eff, na.rm = T),
+      eff_max = max(eff, na.rm = T),
+      eff_sd =  sd(eff, na.rm = T),
+      sinpeff = mean(sinpeff, w = `Capacity (MW)`, na.rm = T),
+      waf.fx = weighted.mean(waf.fx, w = `Capacity (MW)`, na.rm = T),
+      af.fx = weighted.mean(af.fx, w = `Capacity (MW)`, na.rm = T), 
+      afs.up.ANNUAL = weighted.mean(afs.up.ANNUAL, w = `Capacity (MW)`, na.rm = T),
+      varom = weighted.mean(varom, w = `Capacity (MW)`, na.rm = T),
+      fixom = weighted.mean(fixom, w = `Capacity (MW)`, na.rm = T)
+    ))
+  dat[is.nan(dat) | is.infinite(dat)] <- NA
+  dat
+}
+
+dat <- addTechGroups(needs) %>%
+  group_by(tech, cinp, weather) %>%
+  aggTechGroups()
+
+```
+ 
+```{r, echo=FALSE}
+options(knitr.kable.NA = '-')
+knitr::kable(select(dat, -eff_min, -eff_max), digits = 2, caption = "Groups of technologies")
+
+```
+
+#### By states 
+```{r, warning=F}
+tech_reg <- addTechGroups(needs) %>%
+  group_by(`State Name`, tech, cinp, weather) %>%
+  aggTechGroups()
+
+# tech_reg[is.nan(tech_reg) | is.infinite(tech_reg)] <- NA
+dim(tech_reg)
+
+```
+
+```{r, echo=FALSE}
+options(knitr.kable.NA = '-')
+knitr::kable(select(tech_reg, -eff_min, -eff_max), digits = 2, caption = "Groups of technologies by regions")
+
+```
+
+#### By IPM regions
+```{r, warning=F}
+tech_ipm <- addTechGroups(needs) %>%
+  group_by(`Region Name`, tech, cinp, weather) %>%
+  aggTechGroups()
+
+# tech_ipmreg[is.nan(tech_ipmreg) | is.infinite(tech_ipmreg)] <- NA
+dim(tech_ipm)
+
+```
+
+```{r, echo=FALSE}
+options(knitr.kable.NA = '-')
+knitr::kable(select(tech_ipm, -eff_min, -eff_max), digits = 2, 
+             caption = "Groups of technologies by IPM regions")
+
+```
+
+## Existing technologies (installed capacity - base year)
+```{r}
+ftech <- function(dat, slice = "HOUR", region = "region", year = 2018) {
+  ll <- list()
+  techs <- unique(dat$tech)
+  # browser()
+  for(p in techs) {
+    ii <- dat$tech == p 
+    ii <- ii & !is.na(dat$GW) # drop missing data
+    cinp <- unique(dat$cinp[ii])
+    stopifnot(length(cinp) == 1)
+    reg <- dat[[region]][ii]
+    # stopifnot(length(reg) == sum(ii))
+    
+    if (grepl("^E", p)) {
+      ll[[p]] <- newTechnology(
+        name = p,
+        description = paste(p, sum(dat$units[ii], na.rm = T), "units in total"),
+        input = list(
+          comm = cinp,
+          unit = "GWh"
+        ),
+        output = list(
+          comm = "ELC",
+          unit = "GWh"
+        ),
+        cap2act = 365*24,
+        ceff = data.frame(
+          comm = dat$cinp[ii],
+          region = reg, # ifelse(is.null(reg), NA, reg),
+          cinp2use = dat$eff_mean[ii]
+        ),
+        region = unique(reg),
+        stock = data.frame(
+          region = reg,
+          year = year,
+          stock = dat$GW[ii]
+        ),
+        olife = list(
+          olife = 20
+        ),
+        end = list(
+          end = 2000
+        ),
+        slice = slice
+      )      
+      # add optional parameters
+      # weather ####
+      jj <- !is.na(dat$weather) & ii
+      wea <- unique(dat$weather[jj])
+      if (any(jj)) {
+        stopifnot(length(wea) == 1)
+        ll[[p]] <- update(
+          ll[[p]], 
+          weather = list(
+            weather = wea,
+            waf.fx = mean(dat$waf.fx[jj])
+          ),
+          # af = list(
+          #   # region = reg,
+          #   af.fx = mean(dat$af.fx[jj])
+          # )
+        )
+      }
+      # af.fx ####
+      jj <- !is.na(dat$af.fx) & ii
+      if (any(jj)) {
+        ll[[p]] <- update(
+          ll[[p]], 
+          af = list(
+            af.fx = mean(dat$af.fx[jj])
+          )
+        )
+      }
+      # varom ####
+      jj <- !is.na(dat$varom) & ii
+      if (any(jj)) {
+        ll[[p]] <- update(
+          ll[[p]], 
+          varom = list(
+            varom = mean(dat$varom[jj])
+          )
+        )
+      }
+      # fixom ####
+      jj <- !is.na(dat$fixom) & ii
+      if (any(jj)) {
+        ll[[p]] <- update(
+          ll[[p]], 
+          fixom = list(
+            fixom = mean(dat$fixom[jj])
+          )
+        )
+      }
+      # afs.up.ANNUAL ####
+      jj <- !is.na(dat$afs.up.ANNUAL) & ii
+      if (any(jj)) {
+        ll[[p]] <- update(
+          ll[[p]], 
+          afs = data.frame(
+            region = reg,
+            slice = "ANNUAL",
+            afs.up = mean(dat$afs.up.ANNUAL[jj])
+          )
+        )
+      }
+
+    } else if (grepl("^STG", p)) {
+       ll[[p]] <- newStorage(
+        name = p,
+        commodity = 'ELC',
+        description = "",
+        cap2stg = 1, # in kWh or 1-hour storage
+        olife = list(olife = 20), 
+        # invcost = list(
+        #   invcost = convert("USD/kWh", "MUSD/GWh", 300)
+        #   # 
+        #   ), 
+        stock = data.frame(
+          region = reg,
+          year = year,
+          stock = dat$GW[ii]
+        ),
+        end = list(
+          end = 2000
+        ),
+        seff = data.frame(
+          region = reg,
+          inpeff = dat$sinpeff[ii] # assumed efficiency of charging 
+          # stgeff = 0.9 # assumed efficiency of storing energy (annual)
+          # outeff = 1 # discharge efficiency
+        )
+      )
+   } else {
+      stop("unknown technology type: ", i)
+    }
+  }
+  ll
+}
+
+dat$region <- "USA"
+ll <- ftech(dat)
+length(ll)
+ll[[2]]
+draw(ll[[2]])
+names(ll)
+ll$EWIN
+
+```
+
+### Current stock
+```{r}
+anyDuplicated(tech_ipm)
+tech_ipm$region <- ipm2reg(tech_ipm$`Region Name`)
+ltech_ipm <- ftech(tech_ipm, region = "region")
+length(ltech_ipm)
+ltech_ipm[[1]]
+
+# findDuplicates(ltech_ipm)
+
+# Add balancing ability for every hydro plant, assuming ~20% of storage capacity with no costs
+ii <- tech_ipm$tech == "EHYD"; summary(ii)
+tech_ipm
+
+STGHYD_BY <- newStorage(
+  name = 'STGHYD',
+  description = "Hydro plants storage capacity, 20% of stock GW",
+  commodity = 'ELC',
+  cap2stg = 0.2, # assumed, up to 20% of the plant capacity can be used for balancing
+  stock = data.frame(
+    region = tech_ipm$region[ii],
+    year = 2018L,
+    stock =  tech_ipm$GW[ii]
+  ),
+  end = list(end = 2010)
+)
+
+```
+
+# Transmission
+```{r}
+(load("data/EPA/IPM/transmission.RData"))
+transmission$From <- transmission$From2; transmission$From2 <- NULL
+transmission
+sum(transmission$Capacity_TTC_MW)
+sum(transmission$Energy_TTC_MW)
+
+trd_dt <- transmission %>%
+  rename(src = From, dst = To, 
+         cap1_MW = Capacity_TTC_MW, cap0_MW = Energy_TTC_MW,
+         cost_mills_kWh = Transmission_Tariff_2016_mills_kWh) %>%
+  mutate(src = ipm2reg(src),
+         dst = ipm2reg(dst))
+
+
+# Map region flows
+trd_map <- left_join(trd_dt, reg_centers[,1:3], by = c("src" = "region")) %>%
+  left_join(reg_centers[,1:3], by = c("dst" = "region")) %>%
+  rename(xsrc = x.x, ysrc = y.x,
+         xdst = x.y, ydst = y.y) %>%
+  mutate(GW0 = cap0_MW/1e3,
+         GW1 = cap1_MW/1e3)
+trd_map
+
+trd_capacity_map <-
+  ggplot(data = gis_df) + 
+    geom_polygon(aes(x = long, y = lat, group = group), fill = "wheat", 
+                 colour = "white", alpha = 1, size = .5) + # aes fill = id, 
+    guides(fill=FALSE) +  # do this to leave off the color legend
+    theme_void() +
+    labs(title = "Existing interregional transmission capacity")  +
+    theme(plot.title = element_text(hjust = 0.5), 
+          plot.subtitle = element_text(hjust = 0.5)) +
+    geom_segment(aes(x=xsrc, y=ysrc, xend=xdst, yend=ydst, size = GW0), 
+                 data = trd_map, inherit.aes = FALSE, #size = 2, 
+                 alpha = .5, colour = "dodgerblue", lineend = "round", show.legend = T) +
+    geom_point(data = reg_centers, aes(x, y), colour = "white") +
+    geom_segment(aes(x=xsrc, y=ysrc, xend=xdst, yend=ydst), #, size = GW1
+                 data = trd_map, inherit.aes = FALSE, #size = .1, 
+             arrow = arrow(type = "closed", angle = 15,
+                           length = unit(0.1, "inches")),
+             colour = "white", alpha = .5, 
+             lineend = "butt", linejoin = "mitre", show.legend = T) +
+    scale_size(name = "GW") +
+    coord_fixed(1.4)
+    # coord_map("sinusoidal")
+    # coord_map("bonne", lat0 = 50)
+    # ?mapproject
+    # coord_map("polyconic") +
+    
+    # , name = "Trade, PJ"
+    # geom_text_repel(aes(x, y, label = region), data = reg_centers)
+
+trd_capacity_map
+# trd_map <- trd_map[ii,]; rownames(trd_map) <- NULL
+# trd_dt <- trd_dt[ii,]; rownames(trd_dt) <- NULL
+ggsave("trd_capacity_map.pdf", trd_capacity_map, device = "pdf")
+ggsave(filename = "trd_capacity_map.png", plot = trd_capacity_map, device = "png",
+       width = png.width, height = png.height, dpi = dpi, path = fig.path)
+
+trd_dt$distance_km <- 0.
+for (i in 1:dim(trd_dt)[1]) {
+  rg_dst <- trd_dt$dst[i]
+  rg_src <- trd_dt$src[i]
+  ii <- reg_centers$region == rg_dst
+  lab_dst <- c(reg_centers$x[ii], reg_centers$y[ii])
+  ii <- reg_centers$region == rg_src
+  lab_src <- c(reg_centers$x[ii], reg_centers$y[ii])
+  trd_dt$distance_km[i] <- raster::pointDistance(
+    lab_src, lab_dst, T)/1e3
+}
+
+# Assume 15% longer distance due to a landscape
+trd_dt$distance_km <- 1.15 * trd_dt$distance_km
+# Assume losses 5% per 1000 km
+trd_dt$losses <- round(trd_dt$distance_km / 1e3 * 0.05, 4)
+# Assume losses 1% per 1000 km (UHVDC)
+# trd_dt$losses <- round(trd_dt$distance_km / 1e3 * 0.01, 4)
+trd_dt$teff <- 1 - trd_dt$losses
+# The assumption is based on ABB's 4000-8000 MUSD per 12GW UHVDC, 2000km, 1-5% system losses
+# i.e. ~$160-333 MUSD/1000km per 1GW of the total system 
+# assuming ~$200 MUSD/1000km per 1GW of power line,
+# and $50 MUSD/GW for 1GW converter stations on each end
+# trd_dt$invcost <- round(trd_dt$distance_km / 1e3 * 200) # MUSD/GW of 1000km UHVDC
+# trd_dt$invcost <- round(trd_dt$invcost * 1.5) # Adding land costs (50%, an assumption)
+# trd_dt <- as_tibble(trd_dt)
+
+# Define trade object for every route, 
+# store in a repository object
+TRD_ELC_IPM <- newRepository(name = "TRD_ELC_IPM")
+# for (i in 1:dim(trd_dt)[1]) {
+for (src in unique(trd_dt$src)) {
+  ii <- trd_dt$src == src
+  # src <- trd_dt$src[r]
+  dst <- trd_dt$dst[ii]
+  trd_nm <- paste0("TRD_", src)  # Trade object name
+  cmd_nm <- "ELC"
+  # Trade class for every route
+  trd <- newTrade(trd_nm,
+                  commodity = cmd_nm,
+                  # source = c(src, dst),
+                  # destination = c(src, dst),
+                  routes = data.frame(
+                    src = c(src),
+                    dst = c(dst)
+                  ),
+                  trade = data.frame(
+                    src = trd_dt$src[ii],
+                    dst = trd_dt$dst[ii],
+                    # Maximum capacity per route in GW
+                    ava.up = trd_dt$cap0_MW[ii]/1e3, # * 365 * 24 annual?
+                    teff = trd_dt$teff[ii], # trade losses
+                    cost = trd_dt$cost_mills_kWh[ii] * convert("mills/kWh", "MUSD/GWh")  # trade costs
+                    # markup = trd_dt$cost[i] # and/or markup
+                    ),
+                  capacityVariable = FALSE 
+                  # invcost = data.frame(
+                  #   # src = src,
+                  #   # dst = dst,
+                  #   # year = 2010,
+                  #   region = c(dst, src),
+                  #   # invcost = trd_dt$distance_km[i] / 1e3 * 250 / 2 # 
+                  #   invcost = trd_dt$invcost[i] / 2
+                  # ),
+                  # # olife = data.frame(
+                  # olife = 80,
+                  # ),
+                  # cap2act = convert("GWh", "GWh", 24*365)
+                  )
+  
+  TRD_ELC_IPM <- add(TRD_ELC_IPM, trd)
+}
+length(TRD_ELC_IPM@data)
+TRD_ELC_IPM@data[[1]]
+rm(trd)
+
+```
+
+# Time slices
+```{r}
+# A list with two levels slices
+timeslices365 <- list(
+  YDAY = paste0("d", formatC(1:365, width = 3, flag = "0")),
+  HOUR = paste0("h", formatC(0:23, width = 2, flag = "0"))
+)
+
+# Function to convert data-time object into names of time-slices.
+datetime2tsdh <- function(dt) {
+  paste0("d", formatC(lubridate::yday(dt), width = 3, flag = "0"), "_",
+         "h", formatC(lubridate::hour(dt), width = 2, flag = "0"))
+}
+# check
+datetime2tsdh(lubridate::today("EST"))
+
+# Function to coerse time-slices names into data-time format, for a given year and time-zone.
+tsdh2datetime <- function(tslice, year = 2018, tz = "EST") {
+  DAY <- as.integer(substr(tslice, 2, 4)) - 1
+  HOUR <- as.integer(substr(tslice, 7, 8))
+  lubridate::ymd_h(paste0(year, "-01-01 0"), tz = tz) + 
+    lubridate::days(DAY) + lubridate::hours(HOUR)
+}
+# check
+tsdh2datetime("d365_h23")
+
+mdh2tsdh <- function(m = NULL, d = NULL, h = NULL, yd = NULL, leap_year = FALSE) {
+  # numeric month, day of month, hour (0-23) to time-slice dXXX_hXX
+  stopifnot(all(h - floor(h) == 0))
+  year <- ifelse(leap_year, 2020L, 2021L)
+  if (is.null(yd)) {
+    stopifnot(all(m - floor(m) == 0))
+    stopifnot(all(d - floor(d) == 0))
+    dt <- paste(paste(year, m, d, sep = "-"), formatC(h, flag = "0", width = 2))
+    dt <- lubridate::as_datetime(dt, format = "%Y-%m-%e %H", tz = "UTC")
+    yd <- lubridate::yday(dt)
+  }
+  paste0("d", formatC(yd, width = 3, flag = "0"), "_",
+         "h", formatC(h, width = 2, flag = "0"))
+}
+
+mdh2tsdh(1,1,0); mdh2tsdh(yd = 1, h = 0)
+mdh2tsdh(12,31,23); mdh2tsdh(12,31,23,NULL,T)
+
+```
+
+# Demand
+The IPM data base don't have generating capacities for included Canadian regions, but has load profiles. Therefore, for some scenarios, the data is not sufficient to model Cannadian regions. Below we define two versions of demand - for all model regions (USA and CAN) and for US only.  
+
+```{r}
+(load("data/EPA/IPM/load_curves.RData"))
+load_curves
+sum(load_curves$MWh)/1e6 # TWh
+load_curves <- load_curves %>%
+  usensys_IPM_convention() %>%
+  mutate(slice = mdh2tsdh(yd = yday, h = hour))
+summary(grepl("NA", load_curves$slice))
+# load_curves[745,]
+
+# Demand for US only
+ii <- grepl("^CN_", load_curves$region); summary(ii)
+# Demand for Canada only
+DEMH_ELC_IPM_CN <- newDemand(
+  name = "DEMH_ELC_IPM_CN",
+  description = "Hourly IPM demand, Canada regions only",
+  commodity = "ELC",
+  dem = data.frame(
+    year = 2018, 
+     region = load_curves$region[ii],
+    slice = load_curves$slice[ii], 
+    dem = round(load_curves$MWh[ii]/1e3, 3)
+    )
+)
+
+DEMH_ELC_IPM_US <- newDemand(
+  name = "DEMH_ELC_IPM_US",
+  description = "Hourly IPM demand, US regions only",
+  commodity = "ELC",
+  dem = data.frame(
+    year = 2018, 
+    region = load_curves$region[!ii],
+    slice = load_curves$slice[!ii], 
+    dem = round(load_curves$MWh[!ii]/1e3, 3)
+    )
+)
+
+(elc_dem_CN_TWh_y <- sum(DEMH_ELC_IPM_CN@dem$dem)/1e3)
+(elc_dem_US_TWh_y <- sum(DEMH_ELC_IPM_US@dem$dem)/1e3)
+(elc_dem_USCA_TWh_y <- elc_dem_CN_TWh_y + elc_dem_US_TWh_y)
+
+
+```
+
+# Weather data
+
+## IPM data
+```{r weather_classes_functions}
+# weather classes by TRG zones
+# TRGs <- unique(wind_onshore$TRG)
+fWeather_by_class <- function(dt, name = "", description = "", CLASS = NULL, 
+                            slice = "HOUR", year = NA) {
+  ll <- list()
+  # browser()
+  if (is.null(CLASS)) {
+    jj <- grepl("TRG|res_class", names(dt))
+    stopifnot(sum(jj) == 1)
+    CLASS <- names(dt)[jj]
+  }
+  CLASSES <- sort(unique(dt[[CLASS]]))
+  for(i in CLASSES) {
+    name_CLASS <- paste0(name, i)
+    ii <- dt[[CLASS]] == i
+    regs <- unique(dt$region[ii])
+    ll[[name_CLASS]] <- newWeather(
+      name = name_CLASS,
+      description = paste(description, i),
+      region = regs,
+      # unit = "kWh/kWh_max",
+      slice = slice,
+      weather = data.frame(
+        region = as.character(dt$region[ii]),
+        year = NA,
+        slice = dt$slice[ii],
+        wval = dt$kWh_per_MW[ii]/1e3
+        )
+    )
+  }
+  ll
+}
+
+```
+
+### Solar
+```{r}
+(load("data/EPA/IPM/solar_profiles.RData"))
+solar_profiles
+sapply(solar_profiles[,-ncol(solar_profiles)], function(x) length(unique(x)))
+# unique(wind_onshore$State_Name)
+
+solar_profiles <- solar_profiles %>%
+  usensys_IPM_convention() %>%
+  select(-state, -season) %>% unique() %>%
+  mutate(slice = mdh2tsdh(month, day, hour))
+
+# Check the data
+group_by(solar_profiles, res_class) %>%
+  summarise(
+    nreg = length(unique(region)),
+    # nstates = length(unique(state)),
+    kWh_per_MW = mean(kWh_per_MW))
+
+AF_SOL_CLS <- fWeather_by_class(solar_profiles, "AF_SOL", 
+                                "Solar availability factors, resource class ")
+size(AF_SOL_CLS); length(AF_SOL_CLS); names(AF_SOL_CLS)
+class(AF_SOL_CLS[[1]])
+rm(solar_profiles)
+
+```
+
+### Wind onshore
+```{r wind_onshore}
+(load("data/EPA/IPM/wind_profiles.RData"))
+wind_onshore
+sapply(wind_onshore[,-ncol(wind_onshore)], function(x) length(unique(x)))
+# unique(wind_onshore$State_Name)
+
+wind_onshore <- wind_onshore %>%
+  usensys_IPM_convention() %>%
+  select(-state, -season) %>% unique() %>%
+  mutate(slice = mdh2tsdh(month, day, hour))
+# unique(wind_onshore)
+# unique(select(wind_onshore, region, TRG, slice, kWh_per_MW))
+
+group_by(wind_onshore, region) %>%
+  summarise(n = n()/8760) %>% as.data.frame()
+
+# gg <- wind_onshore %>%
+#   filter(region == "MIS_IA", TRG == 1) %>%
+#   pivot_wider(names_from = state, values_from = kWh_per_MW)
+# 
+# ggplot(gg) + 
+#   geom_point(aes(IA, MN))
+#   
+# unique(gg$state)
+
+# Check the data
+group_by(wind_onshore, TRG) %>%
+  summarise(
+    nreg = length(unique(region)),
+    # nstates = length(unique(state)),
+    kWh_per_MW = mean(kWh_per_MW))
+
+AF_WIN_TRG <- fWeather_by_class(
+  wind_onshore, "AF_WIN", "Onshore wind availability factors, TRG")
+
+size(AF_WIN_TRG); length(AF_WIN_TRG); names(AF_WIN_TRG)
+class(AF_WIN_TRG[[1]])
+# rm(wind_onshore)
+AF_WIN_TRG$AF_WIN2@weather %>% as_tibble()
+unique(AF_WIN_TRG$AF_WIN2@weather) %>% as_tibble()
+
+
+```
+
+### Wind offshore 
+#### Shallow
+```{r}
+wind_offshore_shallow <- wind_offshore_shallow %>%
+  usensys_IPM_convention() %>%
+  select(-state, -season) %>% unique() %>%
+  mutate(slice = mdh2tsdh(month, day, hour))
+wind_offshore_shallow
+
+group_by(wind_offshore_shallow, TRG) %>%
+  summarise(
+    nreg = length(unique(region)),
+    # nstates = length(unique(state)),
+    kWh_per_MW = mean(kWh_per_MW))
+
+AF_WIF_TRG_shallow <- fWeather_by_class(
+  wind_offshore_shallow, 
+  name = "AF_WIF_TRG", 
+  description = "Offshore wind availability factors, shallow, TRG")
+
+size(AF_WIF_TRG_shallow); length(AF_WIF_TRG_shallow); names(AF_WIF_TRG_shallow)
+class(AF_WIF_TRG_shallow[[1]])
+rm(wind_offshore_shallow)
+
+```
+
+#### Mid-depth
+```{r}
+wind_offshore_middepth <- wind_offshore_middepth %>%
+  usensys_IPM_convention() %>%
+  select(-state, -season) %>% unique() %>%
+  mutate(slice = mdh2tsdh(month, day, hour))
+wind_offshore_middepth
+
+group_by(wind_offshore_middepth, TRG) %>%
+  summarise(
+    nreg = length(unique(region)),
+    # nstates = length(unique(state)),
+    kWh_per_MW = mean(kWh_per_MW))
+
+AF_WIF_TRG_mid <- fWeather_by_class(
+  wind_offshore_middepth,
+  name = "AF_WIF_TRG", 
+  description = "Onshore wind availability factors, middepth, TRG")
+
+size(AF_WIF_TRG_mid); length(AF_WIF_TRG_mid); names(AF_WIF_TRG_mid)
+class(AF_WIF_TRG_mid[[1]])
+rm(wind_offshore_middepth)
+
+```
+
+#### Deep
+```{r}
+wind_offshore_deep <- wind_offshore_deep %>%
+  usensys_IPM_convention() %>%
+  select(-state, -season) %>% unique() %>%
+  mutate(slice = mdh2tsdh(month, day, hour))
+wind_offshore_deep
+
+group_by(wind_offshore_deep, TRG) %>%
+  summarise(
+    nreg = length(unique(region)),
+    # nstates = length(unique(state)),
+    kWh_per_MW = mean(kWh_per_MW))
+
+AF_WIF_TRG_deep <- fWeather_by_class(
+  wind_offshore_deep, 
+  name = "AF_WIF_TRG",
+  description = "Onshore wind availability factors, deep, TRG")
+size(AF_WIF_TRG_deep); length(AF_WIF_TRG_deep); names(AF_WIF_TRG_deep)
+class(AF_WIF_TRG_deep[[1]])
+rm(wind_offshore_deep)
+
+```
+
+## MERRA-2 data 
+Alternative source of historical weather data. Probably more consistent and available for 40 years. The current example takes data from 2017 (see "waf_merra2.Rmd" for refference).  
+### Solar AF
+```{r merra2}
+# Solar AF 
+(load("data/MERRA2/dhsol_IPM78.RData"))
+# dim(dhsol)
+dhsol
+ii <- rep(T, nrow(dhsol)) # filter if needed
+
+AF_SOL_merra <- newWeather(
+  name = "AF_SOL", # the main source of the data (generic name)
+  description = "Ground level insolation AF, MERRA-2",
+  # unit = "kWh/kWh_max",
+  slice = "HOUR",
+  weather = data.frame(
+    region = as.character(dhsol$region[ii]),
+    # year = 2018,
+    slice = dhsol$slice[ii],
+    wval = dhsol$WF[ii]
+  ))
+
+head(AF_SOL_merra@weather)
+dim(AF_SOL_merra@weather)[1]/365/24 # Check: must be integer
+
+```
+
+### Wind AF 
+#### Onshore
+```{r}
+# Wind AF (onshore)
+(load("data/MERRA2/wnd_af20_IPM78.RData"))
+# wnd_af20$slice <- datetime2tsdh(wnd_af20$datetime)
+wnd_af20
+dim(wnd_af20)[1]/365/24 # number of regions with the onshore potential
+ii <- rep(T, dim(wnd_af20)[1]) # filter
+summary(wnd_af20$af50m)
+# wnd_af20$region <- as.character(wnd_af20$region)
+AF_WIN_merra <- newWeather(
+  name = "AF_WIN",
+  description = "Onshore wind potential af20, MERRA-2",
+  region = unique(wnd_af20$region[ii]),
+  # unit = "kWh/kWh_max",
+  slice = "HOUR",
+  weather = data.frame(
+    region = as.character(wnd_af20$region[ii]),
+    # year = 2010,
+    slice = wnd_af20$slice[ii],
+    wval = wnd_af20$af50m[ii]
+  ))
+
+head(AF_WIN_merra@weather)
+dim(AF_WIN_merra@weather)[1]/365/24 # Check - number of regions with the data
+
+```
+
+#### Offshore
+```{r}
+# Wind AF (offshore)
+(load("data/MERRA2/wndf_af20_IPM78.RData"))
+# wndf_af20$slice <- datetime2tsdh(wndf_af20$datetime)
+wndf_af20
+dim(wndf_af20)[1]/365/24
+ii <- rep(T, dim(wndf_af20)[1]) # filter
+summary(wndf_af20$af50m)
+# wndf_af20$region <- as.character(wndf_af20$region)
+AF_WIF_merra <- newWeather(
+  name = "AF_WIF",
+  description = "Offshore wind potential af20, MERRA-2",
+  region = unique(wndf_af20$region[ii]),
+  # unit = "kWh/kWh_max",
+  slice = "HOUR",
+  weather = data.frame(
+    region = as.character(wndf_af20$region[ii]),
+    # year = 2010,
+    slice = wndf_af20$slice[ii],
+    wval = wndf_af20$af50m[ii]
+  ))
+head(AF_WIF_merra@weather)
+dim(AF_WIF_merra@weather)[1]/365/24 # Check - number of regions with the data
+```
+</p>
+</details>
+
+# New technologies
+```{r functions}
+# Construct technology objects from given data.frame
+fTechs_with_weather <- function(dat, description = "", invcost_base = 0,
+                                start = 2018L, 
+                                wea_preffix = "AF_", 
+                                wea_res_class_ending = TRUE) {
+  ll <- list()
+  for (tech in unique(dat$tech)) {
+    ii <- dat$tech == tech
+    dat[ii,]
+    cinp <- unique(dat$cinp[ii]); stopifnot(length(cinp) == 1)
+    res_class <- unique(dat$res_class[ii]); stopifnot(length(res_class) == 1)
+    regs <- unique(dat$region[ii])
+    weather_af <- paste0(wea_preffix, cinp, 
+                         ifelse(wea_res_class_ending, res_class, ""))
+    
+    ll[[tech]] <- newTechnology(
+      name = tech,
+      description = description,
+      region = regs,
+      input = list(
+        comm = cinp,
+        unit = "GWh"
+      ),
+      output = list(
+        comm = "ELC",
+        unit = "GWh"
+      ),
+      cap2act = 365*24,
+      af = list(
+        af.fx = 1 # forcing output when resource is available
+      ),
+      weather = list(
+        weather = weather_af, #paste0("AF_", cinp),
+        waf.fx = 1 # weather factor (multiplier) will be applied to af.fx
+      ),
+      # fixom = list(
+      #   fixom = 10 # assumed, 1% of investment costs a year
+      # ),
+      invcost = list(
+        region = dat$region[ii],
+        invcost = invcost_base + dat$add_USD_per_kW[ii] # convert("USD/W", "MUSD/GW", 1)
+      ),
+      # start = list(
+      #   start = start
+      # ),
+      olife = data.frame(
+        region = regs,
+        olife = 25
+      )
+    )
+  }
+  ll
+}
+
+# Create supply objects from given data.frame
+fSup <- function(dat, description = "", name_prefix = "RES_") {
+  # Simplified, unlimited supply
+  ll <- list()
+  # browser()
+  for (comm in unique(dat$cinp)) {
+    ii <- dat$cinp == comm
+    sup_name <- paste0(name_prefix, comm)
+    # dat[ii,]
+    regs <- unique(dat$region[ii])
+    # weather_af <- paste0(wea_preffix, cinp)
+    ll[[sup_name]] <- newSupply(
+      name = sup_name,
+      description = description,
+      commodity = comm,
+      unit = "GWh",
+    # Weather factors could be used to regulate hourly supply of the resources.
+    # Though to reduce the model dimension, it is enough to use
+    # weather factors in technologies.
+      # weather = data.frame(
+      #   weather = c("SOLAR_AF"),
+      #   wava.up =  c(1)
+      #   ),
+      # availability = list(
+      #   # region = dh$region,
+      #   # slice = dh$slice365,
+      #   ava.up = 1e10 # Max available resource in hour, i.e. no limit by now
+      # ),
+      slice = "ANNUAL"
+    )
+  }
+  ll
+}
+
+# Constraints on technology capacity
+# fCapLim <- function(dat, description = "", year = 2018L) {
+#   # limit on capacity (resource)
+#   CSOL_UP <- newConstraintS(
+#     name = "CSOL_UP",
+#     eq = "<=",
+#     type = "capacity",
+#     for.each = data.frame(
+#       year = year,
+#       tech = unique(dat$tech),
+#       region = unique(dat$region)),
+#     rhs = data.frame(
+#       # year = USENSYS$modelYear,
+#       # tech = "ESOL",
+#       region = dat$region,
+#       rhs = dat$MW/1e3
+#     ))
+#   
+# }
+
+fComm <- function(comm, description = "", slice = "HOUR") {
+  stopifnot(length(unique(comm)) == length(comm))
+  ll <- list()
+  for (i in 1:length(comm)) {
+    ll[[comm[i]]] <- newCommodity(
+      name = comm[i], 
+      description = description,
+      slice = slice)
+  }
+  ll
+}
+
+```
+
+## Solar PVs
+### IPM, full set of techs
+```{r}
+(load("data/EPA/IPM/solar_pv_potential.RData"))
+(load("data/EPA/IPM/solpv_invcost_adder.RData"))
+solar_pv_potential
+solpv_invcost_adder
+
+# Prepare data.frame with names of tehcnologies and differences in parameters
+solar_pv_techs <- full_join(solar_pv_potential, solpv_invcost_adder) %>%
+  filter(!is.na(MW)) %>%
+  usensys_IPM_convention() %>%
+  select(-state) %>% unique() %>%
+  mutate(tech = paste0("ESPV_R", res_class, "C", cost_class),
+         cinp = paste0("SOL")) %>%
+         # cinp = paste0("SOL", res_class))
+  rename(add_USD_per_kW = USD_per_kW)
+solar_pv_techs
+summary(solar_pv_techs$add_USD_per_kW)
+length(unique(solar_pv_techs$tech))
+
+# Create technologies, store in list
+ESOL_ipm <- fTechs_with_weather(solar_pv_techs, invcost_base = 1000)
+length(ESOL_ipm); names(ESOL_ipm)
+ESOL_ipm[[1]]
+
+# Supply for input commodities
+SUPSOL_ipm <- fSup(solar_pv_techs)
+length(SUPSOL_ipm); names(SUPSOL_ipm)
+SUPSOL_ipm[[1]]
+
+# Constrain the max capacity in each region by techs
+CSOL_UP_ipm <- newConstraintS(
+  name = "CSOL_UP",
+  eq = "<=",
+  type = "capacity",
+  for.each = data.frame(
+    year = 2018L,
+    tech = solar_pv_techs$tech,
+    region = solar_pv_techs$region),
+  rhs = data.frame(
+    # year = USENSYS$modelYear,
+    tech = solar_pv_techs$tech,
+    region = solar_pv_techs$region,
+    rhs = round(solar_pv_techs$MW/1e3, 3)
+  )
+)
+summary(CSOL_UP_ipm@rhs$rhs)
+sum(CSOL_UP_ipm@rhs$rhs) # GW maximum capacity
+
+# Commodities
+SOL_comm <- fComm(unique(solar_pv_techs$cinp))
+names(SOL_comm)
+
+```
+
+### IPM, reduced set (one tech per region)
+```{r}
+# Take only the largest resource for each region, drop others
+# (for test runs and simplifications)
+solar_pv_techs_one <- solar_pv_techs %>% group_by(region) %>%
+  summarise(MW = max(MW, na.rm = T)) %>%
+  left_join(solar_pv_techs) 
+solar_pv_techs_one
+summary(solar_pv_techs_one$add_USD_per_kW)
+length(unique(solar_pv_techs_one$tech))
+sum(solar_pv_techs_one$MW)/1e3; sum(solar_pv_techs$MW)/1e3
+
+# solar_pv_techs_one <- solar_pv_techs
+# Aggregate all techs with resources <= max
+# solar_pv_techs_lemax 
+# solar_pv_techs_wmean
+# solar_pv_techs %>% group_by(region) %>%
+#   summarise(USD_per_kW = weighted.mean(USD_per_kW, MW),
+#             MW = sum(MW, na.rm = T)) %>%
+#   left_join(select(solar_pv_techs, tech, region, cinp))
+
+ESOL_one <- fTechs_with_weather(solar_pv_techs_one, invcost_base = 1000)
+length(ESOL_one); names(ESOL_one)
+ESOL_one[[1]]
+
+SUPSOL_one <- fSup(solar_pv_techs_one)
+length(SUPSOL_one); names(SUPSOL_one)
+SUPSOL_one[[1]]
+
+CSOL_UP_one <- newConstraintS(
+  name = "CSOL_UP",
+  eq = "<=",
+  type = "capacity",
+  for.each = data.frame(
+    year = 2018L,
+    tech = solar_pv_techs_one$tech,
+    region = solar_pv_techs_one$region),
+  rhs = data.frame(
+    # year = USENSYS$modelYear,
+    tech = solar_pv_techs_one$tech,
+    region = solar_pv_techs_one$region,
+    rhs = round(solar_pv_techs_one$MW/1e3, 0)
+  )
+)
+summary(CSOL_UP_one@rhs$rhs)
+sum(CSOL_UP_one@rhs$rhs) # GW maximum capacity
+
+SOL_comm <- fComm(unique(solar_pv_techs_one$cinp))
+names(SOL_comm)
+
+```
+
+### MERRA-2 version 
+```{r}
+PV_GW_max_reg; solar_pv_techs
+solar_pv_techs_merra <- solar_pv_techs %>%
+  group_by(region, cinp) %>%
+  summarise(
+    GW = round(sum(MW)/1e3, 3),
+    add_USD_per_kW = weighted.mean(add_USD_per_kW, MW)
+  ) %>%
+  full_join(PV_GW_max_reg)
+solar_pv_techs_merra
+sapply(solar_pv_techs_merra, is.na) %>% colSums()
+
+# MERRA-2 potential vs. EPA/IPM
+solar_pv_techs_merra$GW_up_diff <- 
+  solar_pv_techs_merra$GW_up - solar_pv_techs_merra$GW
+solar_pv_techs_merra %>% as.data.frame()
+
+# fill-in NAs or drop
+ii <- is.na(solar_pv_techs_merra$GW_up)
+solar_pv_techs_merra[ii,]
+# solar_pv_techs_merra$GW_up[ii] <- solar_pv_techs_merra$GW[ii]
+solar_pv_techs_merra <- solar_pv_techs_merra[!ii,]
+
+ii <- is.na(solar_pv_techs_merra$cinp)
+solar_pv_techs_merra[ii,]
+solar_pv_techs_merra$cinp[ii] <- unique(solar_pv_techs_merra$cinp[!ii]) # length == 1
+solar_pv_techs_merra$add_USD_per_kW[ii] <- 0
+sapply(solar_pv_techs_merra, is.na) %>% colSums() 
+
+# Technology name
+solar_pv_techs_merra$tech <- "ESOL"
+solar_pv_techs_merra$res_class <- ""
+
+ESOL_merra <- fTechs_with_weather(
+  solar_pv_techs_merra, invcost_base = 1000, wea_res_class_ending = F)
+
+length(ESOL_merra)
+ESOL_merra[[1]]
+
+SUPSOL_merra <- fSup(solar_pv_techs_merra)
+length(SUPSOL_merra); names(SUPSOL_merra)
+SUPSOL_merra[[1]]
+
+CSOL_UP_merra <- newConstraintS(
+  name = "CSOL_UP",
+  eq = "<=",
+  type = "capacity",
+  for.each = data.frame(
+    year = 2018L,
+    tech = solar_pv_techs_merra$tech,
+    region = solar_pv_techs_merra$region),
+  rhs = data.frame(
+    year = 2018L,
+    tech = solar_pv_techs_merra$tech,
+    region = solar_pv_techs_merra$region,
+    rhs = round(solar_pv_techs_merra$GW_up, 0)
+  )
+)
+summary(CSOL_UP_merra@rhs$rhs)
+sum(CSOL_UP_merra@rhs$rhs); sum(CSOL_UP_ipm@rhs$rhs) # GW maximum capacity
+
+SOL_comm_merra <- fComm(unique(solar_pv_techs_merra$cinp))
+names(SOL_comm_merra)
+
+```
+
+## Wind onshore
+### IPM
+```{r}
+(load("data/EPA/IPM/onshore_invcost_adder.RData"))
+(load("data/EPA/IPM/onshore_wind_potential.RData"))
+onshore_wind_potential
+onshore_invcost_adder
+
+wind_onshore_techs <- onshore_wind_potential %>%
+  full_join(onshore_invcost_adder) %>%
+  filter(!is.na(MW)) %>%
+  usensys_IPM_convention() %>%
+  select(-state) %>% unique() %>%
+  mutate(tech = paste0("EWIN_R", TRG, "C", cost_class),
+         cinp = paste0("WIN")) %>%
+         # cinp = paste0("WIN", TRG)) %>%
+  rename(add_USD_per_kW = USD_per_kW,
+         res_class = TRG)
+wind_onshore_techs
+summary(wind_onshore_techs$add_USD_per_kW)
+# NA's in Canada regions - replacing to average
+wind_onshore_techs$add_USD_per_kW[is.na(wind_onshore_techs$add_USD_per_kW)] <- 
+  mean(wind_onshore_techs$add_USD_per_kW, na.rm = T)
+length(unique(wind_onshore_techs$tech))
+
+EWIN_ipm <- fTechs_with_weather(wind_onshore_techs, invcost_base = 1500)
+length(EWIN_ipm); names(EWIN_ipm)
+EWIN_ipm[[1]]
+
+CWIN_UP_ipm <- newConstraintS(
+  name = "CWIN_UP",
+  eq = "<=",
+  type = "capacity",
+  for.each = data.frame(
+    year = 2018L,
+    tech = wind_onshore_techs$tech,
+    region = wind_onshore_techs$region),
+  rhs = data.frame(
+    year = 2018L, # USENSYS$modelYear,
+    tech = wind_onshore_techs$tech,
+    region = wind_onshore_techs$region,
+    rhs = round(wind_onshore_techs$MW/1e3, 0)
+  )
+)
+summary(CWIN_UP_ipm@rhs$rhs)
+sum(CWIN_UP_ipm@rhs$rhs) # GW maximum capacity
+
+WIN_comm_ipm <- fComm(unique(wind_onshore_techs$cinp))
+names(WIN_comm_ipm)
+
+```
+
+### MERRA-2 version  
+```{r}
+wnd_GW_max_reg # Merra-2 data
+
+wind_onshore_techs_merra <- wnd_GW_max_reg %>%
+  rename(GW_up = max_GW) %>%
+  mutate(
+    tech = "EWIN",
+    cinp = "WIN",
+    res_class = "",
+    cost_class = "",
+    add_USD_per_kW = 0
+  ) #%>%
+  # left_join(select(wind_onshore_techs, region, add_USD_per_kW))
+wind_onshore_techs_merra
+# sapply(wind_onshore_techs_merra, is.na) %>% colSums()
+
+# Technology name
+# wind_onshore_techs_merra$tech <- "EWIN"
+# wind_onshore_techs_merra$res_class <- ""
+
+EWIN_merra <- fTechs_with_weather(
+  wind_onshore_techs_merra, invcost_base = 1500, wea_res_class_ending = F)
+
+length(EWIN_merra)
+EWIN_merra[[1]]
+
+SUPWIN_merra <- fSup(wind_onshore_techs_merra)
+length(SUPWIN_merra); names(SUPWIN_merra)
+SUPWIN_merra[[1]]
+
+CWIN_UP_merra <- newConstraintS(
+  name = "CWIN_UP",
+  eq = "<=",
+  type = "capacity",
+  for.each = data.frame(
+    year = 2018L,
+    tech = wind_onshore_techs_merra$tech,
+    region = wind_onshore_techs_merra$region),
+  rhs = data.frame(
+    year = 2018L,
+    tech = wind_onshore_techs_merra$tech,
+    region = wind_onshore_techs_merra$region,
+    rhs = round(wind_onshore_techs_merra$GW_up, 0)
+  )
+)
+summary(CWIN_UP_merra@rhs$rhs)
+sum(CWIN_UP_merra@rhs$rhs); #sum(CWIN_UP_ipm@rhs$rhs) # GW maximum capacity
+
+WIN_comm_merra <- fComm(unique(wind_onshore_techs_merra$cinp))
+names(WIN_comm_merra)
+
+```
+
+## Wind offshore  
+### IPM - skipped  
+(not finished, the data on potential is missing)  
+
+### MERRA-2 version  
+```{r}
+wndf_GW_max_reg # Merra-2 data
+
+wind_offshore_techs_merra <- wndf_GW_max_reg %>%
+  rename(GW_up = max_GW) %>%
+  mutate(
+    tech = "EWIF",
+    cinp = "WIF",
+    res_class = "",
+    cost_class = "",
+    add_USD_per_kW = 0
+  )
+wind_offshore_techs_merra
+# sapply(wind_offshore_techs_merra, is.na) %>% colSums()
+
+# Technology name
+# wind_offshore_techs_merra$tech <- "EWIN"
+# wind_offshore_techs_merra$res_class <- ""
+
+EWIF_merra <- fTechs_with_weather(
+  wind_offshore_techs_merra, invcost_base = 3500, wea_res_class_ending = F)
+
+length(EWIF_merra)
+EWIF_merra[[1]]
+
+SUPWIF_merra <- fSup(wind_offshore_techs_merra)
+length(SUPWIF_merra); names(SUPWIF_merra)
+SUPWIF_merra[[1]]
+
+CWIF_UP_merra <- newConstraintS(
+  name = "CWIF_UP",
+  eq = "<=",
+  type = "capacity",
+  for.each = data.frame(
+    year = 2018L,
+    tech = wind_offshore_techs_merra$tech,
+    region = wind_offshore_techs_merra$region),
+  rhs = data.frame(
+    year = 2018L,
+    tech = wind_offshore_techs_merra$tech,
+    region = wind_offshore_techs_merra$region,
+    rhs = round(wind_offshore_techs_merra$GW_up, 0)
+  )
+)
+summary(CWIF_UP_merra@rhs$rhs)
+sum(CWIF_UP_merra@rhs$rhs); #sum(CWIF_UP_ipm@rhs$rhs) # GW maximum capacity
+
+WIF_comm_merra <- fComm(unique(wind_offshore_techs_merra$cinp))
+names(WIF_comm_merra)
+
+```
+
+# New Storage  
+```{r}
+
+STGBTR <- newStorage(
+  name = 'STGBTR',
+  commodity = 'ELC',
+  description = "Generic grid-integrated storage, 1 hour plus",
+  cap2stg = 1, # in kWh or 1-hour storage
+  olife = list(olife = 20), 
+  invcost = list(
+    invcost = convert("USD/kWh", "MUSD/GWh", 300)
+    # 
+    ), 
+  seff = data.frame(
+    inpeff = 0.8 # assumed efficiency of charging 
+    # stgeff = 0.9 # assumed efficiency of storing energy (annual)
+    # outeff = 1 # discharge efficiency
+    )
+)
+
+CSTGCAP500 <- newConstraint(
+  'CSTGCAP500', eq = '<=', rhs = 500, # GWh
+  variable = list(variable = 'vStorageCap'))
+
+
+```
+
+# Supply  
+```{r}
+# (load("data/EPA/IPM/coal_supply.RData"))
+
+SUPCOA <- newSupply(
+  name = "SUPCOA",
+  commodity = "COA",
+  description = "Simplified coal supply",
+  availability = list(
+    cost = convert("USD/tce", "MUSD/GWh", 70/.7)
+  )
+)
+
+# 1,000 Cubic Feet Of Natural Gas to Therms (u.s.) = 10.0024
+# 4 USD/cu.ft ~= 0.4 USD/therm
+SUPGAS <- newSupply(
+  name = "SUPGAS",
+  description = "Simplified gas supply",
+  commodity = "GAS",
+  availability = list(
+    cost = convert("USD/therm", "MUSD/GWh", 0.5)
+  ),
+  slice = "ANNUAL"
+)
+
+SUPOIL <- newSupply(
+  name = "SUPOIL",
+  description = "Simplified oil supply",
+  commodity = "OIL",
+  availability = list(
+    cost = convert("USD/therm", "MUSD/GWh", 0.5)
+  ),
+  slice = "ANNUAL"
+)
+
+SUPBIO <- newSupply(
+  name = "SUPBIO",
+  description = "Simplified Biomass supply",
+  commodity = "BIO",
+  availability = list(
+    cost = convert("USD/therm", "MUSD/GWh", 0.4) # assumption
+  ),
+  slice = "ANNUAL"
+)
+
+SUPWST <- newSupply(
+  name = "SUPWST",
+  description = "Simplified waste supply",
+  commodity = "WST",
+  # availability = list(
+  #   cost = convert("USD/therm", "MUSD/GWh", 0.5)
+  # ),
+  slice = "ANNUAL"
+)
+
+SUPNUC <- newSupply(
+  name = "SUPNUC",
+  description = "Simplified nuclear supply",
+  commodity = "NUC",
+  # availability = list(
+  #   cost = convert("USD/therm", "MUSD/GWh", 0.5)
+  # ),
+  slice = "ANNUAL"
+)
+
+SUPHYD <- newSupply(
+  name = "SUPHYD",
+  description = "Simplified nuclear supply",
+  commodity = "HYD",
+  slice = "ANNUAL"
+)
+
+SUPGEO <- newSupply(
+  name = "SUPGEO",
+  description = "Simplified nuclear supply",
+  commodity = "GEO",
+  slice = "ANNUAL"
+)
+
+```
+
+# Commodities  
+```{r}
+ELC <- newCommodity(
+  name = 'ELC', 
+  description = "Generic electricity",
+  slice = "HOUR")
+comm_ipm <- unique(tech_ipm$cinp)
+comm_ipm <- comm_ipm[!is.na(comm_ipm)]
+
+COMM_ipm_BY <- fComm(comm_ipm, slice = "ANNUAL")
+names(COMM_ipm_BY)
+
+
+```
+
+# Curtailments  
+```{r}
+EIMP1 <- newImport(
+  name = "EIMP",
+  description = "Demand curtailments, electricity import at high price (to identify shortages)",
+  commodity = "ELC",
+  imp = list(
+    price = convert("USD/kWh", "MUSD/GWh", 1) # USD per kWh, marginal price
+  )
+)
+
+EIMP5 <- EIMP1
+EIMP5@imp$price <- 5
+
+EIMP10 <- EIMP1
+EIMP10@imp$price <- 10
+
+
+```
+
+# Model  
+```{r model, eval=TRUE}
+
+repo_IPM_BY <- add(newRepository('IPM_BaseYear'), 
+  # Commodities ####
+  ELC, #UHV,
+  COMM_ipm_BY, # base year commodities
+  # SOL_comm_merra,
+  # WIN_comm_merra,
+  # WIF_comm_merra,
+  # Resources (supply)
+  SUPCOA, SUPGAS, SUPOIL, 
+  SUPBIO, SUPWST, SUPGEO,
+  SUPHYD, SUPNUC,
+  SUPSOL_merra,
+  SUPWIN_merra,
+  SUPWIF_merra,
+  # Weather factors ####
+  # AF_SOL_CLS,
+  # AF_WIN_TRG,
+  # AF_WIN_TRG[grepl(paste0(names(WIN_comm), collapse = "$|"), names(AF_WIN_TRG))],
+  AF_SOL_merra,
+  AF_WIN_merra,
+  AF_WIF_merra,
+  # Generating technologies ####
+  ## Current stock
+  ltech_ipm, 
+  STGHYD_BY, # hydro balancing capacity as storage
+  ## New techs
+  # ESOL_merra,
+  # EWIN_merra,
+  # EWIF_merra,
+  # CSOL_UP_merra,
+  # CWIN_UP_merra, 
+  # CWIF_UP_merra,
+  ## New Storage
+  # STGBTR,
+  # Existing electric grid ####
+  TRD_ELC_IPM,
+  # TRBD_UHV_NEI, ELC2UHV, UHV2ELC,
+  # Export/Import (curtailments), ####
+  # EEXP,
+  EIMP1,
+  # Demand ####
+  # ELC demand with load curve (24 hours x 365 days)
+  DEMH_ELC_IPM_US
+  # DEMH_ELC_IPM_CN
+)
+length(repo_IPM_BY@data)
+sort(names(repo_IPM_BY@data))
+if (F) {
+  (xx <- findDuplicates(repo_IPM_BY))
+}
+
+mod <- newModel(
+  name = 'IPMBY', 
+  description = "USENSYS-IPM-BaseYear",
+  region = reg_names,
+  discount = 0.05,
+  slice = list(ANNUAL = "ANNUAL",
+               YDAY = timeslices365$YDAY, 
+               HOUR = timeslices365$HOUR
+               ),
+  repository = repo_IPM_BY,
+  # GIS = usa49reg,
+  early.retirement = F)
+
+# Check the model time-slices
+head(mod@sysInfo@slice@levels)
+
+# Set milestone-years
+mod <- setMilestoneYears(mod, start = 2018, interval = c(1))
+mod@sysInfo@milestone # check
+
+source("solver_options.R")
+
+if (F) {
+  (xx <- findDuplicates(mod))
+}
+
+```
+
+# Scenarios  
+## IPM Base year scenario, no new investment  
+(~20 min interpolation + ~30 min GAMS/CPLEX)
+```{r IPM_BaseYear, eval=FALSE}
+
+{mod@description <- "
+USENSYS IPM Base Year technologies, 
+balancing version,
+78 regions, 1 hour resolution,
+Demand - US regions only,
+BY interregional network (grid)."}
+size(mod)
+# 1. Interpolation of parameters
+scen_IPMBY <- interpolate(mod, name = "IPMBY", #fullsets = TRUE,
+  description = "")
+size(scen_IPMBY)
+save(scen_IPMBY, file = "tmp/scen_IPMBY_interpolated.RData")
+
+# 2. Writing the model's code with the data on disk
+write_model(scen_IPMBY, tmp.dir = "solwork/scen_IPMBY", solver = GAMS)
+
+# 3. Solving the model
+solve_model("solwork/scen_IPMBY", wait = FALSE)
+
+# 4. Read the solution (run manually once the model is solved)
+if (F) {
+# load("tmp/scen_IPMREN_interpolated.RData")
+  scen_IPMBY <- read_solution(scen_IPMBY, dir.result = "solwork/scen_IPMBY")
+  summary(scen_IPMBY)
+
+  save(scen_IPMBY, file = "scenarios/scen_IPMBY.RData")
+  # load("scenarios/scen_IPMBY.RData")
+}
+
+```
+
+## IPM Base year technologies with investments to new wind, solar, and storage  
+(~30 min interpolation + ~45 min GAMS/CPLEX)
+```{r IPM_BaseYear_Ren, eval=FALSE}
+{mod@description <- "
+USENSYS IPM Base Year technologies, 
+balancing version,
+78 regions, 1 hour resolution,
+X types of renewables (solar PVs),
+X types of storages,
+no interregional dispatch (grid),
+no initial capacity stock."}
+size(mod)
+# save(mod, file = "tmp/mod_interpolation_error.RData")
+# 1. Interpolation of parameters
+scen_IPMBYREN <- interpolate(
+  add(mod, 
+      ESOL_merra$ESOL,
+      EWIN_merra$EWIN,
+      EWIF_merra$EWIF,
+      CSOL_UP_merra,
+      CWIN_UP_merra,
+      CWIF_UP_merra,
+      STGBTR, CSTGCAP500
+      ), 
+  name = "IPMBYREN", #fullsets = TRUE,
+  description = "")
+size(scen_IPMBYREN)
+save(scen_IPMBYREN, file = "tmp/scen_IPMBYREN_interpolated.RData")
+
+# 2. Writing the model's code with the data on disk
+write_model(scen_IPMBYREN, tmp.dir = "solwork/scen_IPMBYREN", solver = GAMS)
+
+# 3. Solving the model
+solve_model("solwork/scen_IPMBYREN", wait = FALSE)
+
+# 4. Read the solution (run manually once the model is solved)
+if (F) {
+# load("tmp/scen_IPMBYREN_interpolated.RData")
+  scen_IPMBYREN <- read_solution(scen_IPMBYREN, dir.result = "solwork/scen_IPMBYREN")
+  summary(scen_IPMBYREN)
+  # size(scen_IPMBYREN)
+  save(scen_IPMBYREN, file = "scenarios/scen_IPMBYREN.RData")
+}
+
+```
+
