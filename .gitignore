@@ -43,10 +43,10 @@ data/_*
 usa_maps.R
 .gitignore
 tmp
-US_ELC_data_files
 USA_ELC_R49_*
 solwork/
 fig/
 data/*.pdf
 data/EPA/IPM/*.pdf
+*_files/
 
