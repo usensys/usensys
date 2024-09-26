@@ -35,20 +35,10 @@ vignettes/*.pdf
 # Shiny token, see https://shiny.rstudio.com/articles/shinyapps.html
 rsconnect/
 
-data/_*
-*.xls*
-*.zip
 *.Rproj
-*.html
-usa_maps.R
-.gitignore
 tmp
-USA_ELC_R49_*
+archive
 
-archive/
-fig/
-data/*.pdf
-data/EPA/IPM/*.pdf
 *_files/
 
 .Rproj.user
