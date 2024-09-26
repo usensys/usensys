@@ -13,6 +13,10 @@ knitr::opts_chunk$set(
 
 ## Multimodel Intercomparison Project (MIP)
 
+https://mip-results.shinyapps.io/mip-results/
+
+https://github.com/gschivley/MIP_results_comparison
+
 
 ## Synthetic Aviation Fuels
 

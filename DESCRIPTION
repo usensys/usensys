@@ -26,3 +26,4 @@ Depends:
     energyRt (>= 0.50.0),
     sf
 Config/Needs/website: rmarkdown
+LazyData: true

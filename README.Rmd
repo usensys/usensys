@@ -37,7 +37,7 @@ Several versions of the model are available with different status of development
 - **26-zones**: The model is based on 26 zones (NERC subscriptions) of the United States. This version has been a part of the Multimodel Intercomparison Project (MIP) and is based on the PowerGenome data.
 - **50-states**: The model is based on the 50 states of the United States, including Alaska and Hawaii. The datasets are based on the EIA data and the NREL ATB. This regional division might be helpful for for integration with other sectors and for state-level policy analysis.
 - **IPM**: The model is based on the IPM model by EPA. The datasets are based on the IPM data and the NREL ATB. 
-- **IMMX**: The model is an extension of the IPM model by EPA with added Mexican states. 
+- **IPMX**: The model is an extension of the IPM model by EPA with added Mexican states. 
 - **ReEDS**: The model is a replica of ReEDS model by NREL with imported data from the ReEDS model repository.
 
 

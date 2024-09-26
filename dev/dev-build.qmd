@@ -22,12 +22,15 @@ editor_options:
 # usethis::use_tidy_contributing()
 # usethis::use_tidy_coc()
 # usethis::use_tidy_style()
+
+usethis::use_r("data")
+
 ```
 
 
 
 ## package website
-```{r}
+```{r, eval = FALSE}
 # run once:
 # usethis::use_pkgdown()
 # usethis::use_logo("archive/logo.svg")
@@ -40,4 +43,30 @@ editor_options:
 
 pkgdown::build_site()
 ```
+
+## Datasets
+```{r, eval = FALSE}
+# maps ####
+# library(sf)
+# library(tidyverse)
+# # mip_sf <- st_read(".../MIP/.../conus_26z_latlon_simple.geojson")
+# mip_sf |> st_is_valid() |> all()
+# 
+# # Fix the geometry
+# mip_sf_valid <- mip_sf |> 
+#   st_transform("EPSG:3857") |>
+#   st_make_valid() |> 
+#   st_transform("EPSG:4326") 
+# 
+# mip_sf_valid |> st_is_valid() |> all()
+# 
+# us26_sf <- mip_sf_valid |> 
+#   rename(ipm_reg_agg = region, region = model_region)
+# 
+# plot(us26_sf)
+# save(us26_sf, file = "data-raw/us26_sf.RData")
+
+
+```
+
 
