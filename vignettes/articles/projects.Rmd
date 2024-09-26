@@ -1,0 +1,20 @@
+---
+title: "Projects"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+:construction: **This document is under construction.** :construction:
+
+## Multimodel Intercomparison Project (MIP)
+
+
+## Synthetic Aviation Fuels
+
+
+## Simulation of 100% Renewable Power Systems

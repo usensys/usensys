@@ -1,0 +1,35 @@
+url: www.usensys.org
+template:
+  bootstrap: 5
+  light-switch: true
+  bslib:
+    bootswatch: morph
+    pkgdown-nav-height: 80px
+  includes:
+    in_header: |
+      <!-- Google tag (gtag.js) -->
+      <script async src="https://www.googletagmanager.com/gtag/js?id=G-WYZJC3B8W9"></script>
+      <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', 'G-WYZJC3B8W9');
+      </script>
+# navbar:
+#   bg: primary
+
+# development:
+#   version_label: info
+development:
+  mode: unreleased
+  destination: dev
+  version_label: danger
+  version_tooltip: "development version"
+
+footer:
+  structure:
+    left: package
+    right: built_with
+
+figures:
+  dpi: 300

@@ -1,0 +1,40 @@
+---
+title: "Development and Building log/tools"
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+## r package dev - log
+```{r, eval = FALSE}
+# run once:
+# usethis::create_package(getwd())
+# usethis::use_agpl3_license()
+# usethis::use_readme_rmd()
+# usethis::use_package("energyRt", type = "Depends", min_version = "0.50.0")
+# usethis::use_package("sf", type = "Depends")
+# usethis::use_data_raw()
+# usethis::use_article("data")
+# usethis::use_article("maps")
+# usethis::use_article("projects")
+# usethis::use_article("usensys")
+# usethis::use_article("us26pg")
+# usethis::use_tidy_contributing()
+# usethis::use_tidy_coc()
+# usethis::use_tidy_style()
+```
+
+
+
+## package website
+```{r}
+# run once:
+# usethis::use_pkgdown()
+# usethis::use_logo("archive/logo.svg")
+# pkgdown::build_favicons(pkg = ".", overwrite = TRUE)
+# pkgdown::init_site()
+# pkgdown::template_navbar()
+
+pkgdown::build_site()
+```
+
