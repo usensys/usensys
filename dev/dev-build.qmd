@@ -34,6 +34,8 @@ editor_options:
 # pkgdown::build_favicons(pkg = ".", overwrite = TRUE)
 # pkgdown::init_site()
 # pkgdown::template_navbar()
+# usethis::use_github(private = FALSE)
+# usethis::use_github_action("pkgdown")
 # pkgdown::build_site_github_pages()
 
 pkgdown::build_site()
