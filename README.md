@@ -7,7 +7,7 @@
 
 > :warning: **This package is under development.**  
 > The expected release date of the first minimal *beta*-version is
-> 2024-09-30.
+> 2024-09-30. Docs in progress: <https://usensys.github.io/usensys/>
 
 </div>
 
@@ -27,8 +27,6 @@ optimization.
 
 <!-- badges: start -->
 <!-- badges: end -->
-
-The goal of usensys is to …
 
 ## Versions
 

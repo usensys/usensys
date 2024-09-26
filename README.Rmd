@@ -20,6 +20,7 @@ knitr::opts_chunk$set(
 ::: warn
 > :warning: **This package is under development.**  
 > The expected release date of the first minimal *beta*-version is 2024-09-30.
+> Docs in progress: <https://usensys.github.io/usensys/>
 :::
 
 **USENSYS** is a linear programming optimization model of the US energy system. This class of models is known as **Macro Energy Models** or **Reference Energy System Models** or **Capacity Expansion Models** (for electric power sector) optimize capacity expansion of alternative technologies under alternative resource and policy constraints and assumptions.   
@@ -29,9 +30,6 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 
 <!-- badges: end -->
-
-The goal of usensys is to ...
-
 
 ## Versions
 Several versions of the model are available with different status of development, all will be included in the package. The versions differ in the geographical scope of the model and regional aggregation, the data sources, and/or replication of existing models by EPA, NREL, and others. The current coverage of economic sectors is currently focused on the electric power sector, but the model is designed to be extended to other sectors in the future. The following versions are currently in preparation for the release:
