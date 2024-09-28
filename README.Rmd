@@ -48,7 +48,7 @@ As open-source models are increasingly becoming the standard and best practice i
 
 ## Features
 
-As a Macro/Reference Energy System model, USENSYS can be used to simulate energy pathways by optimizing energy investments over multiple decades under various conditions. It enables scenario analysis involving different technological options, costs, policy measures, energy demand, economic structures, and other key assumptions.
+As a Macro/Reference Energy System model, USENSYS can be used to simulate energy pathways by optimizing energy-related investments over multiple decades under various conditions. It enables scenario analysis involving different technological options, costs, policy measures, energy demand, economic structures, and other key assumptions.
 
 The package emphasizes flexibility in both data and model structure, adopting a modular approach that facilitates customization of data sources and model components. The model is built on the **energyRt** R-package, a model generator that includes a framework of approximately one hundred pre-built constraints, providing significant flexibility in designing technologies, sectors, and linkages. These constraints are activated based on model or scenario-specific data. Users can also add custom constraints via the R interface, allowing further adaptability. No operational research programming is required to run the suite of models.
 
