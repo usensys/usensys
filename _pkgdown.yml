@@ -1,4 +1,4 @@
-url: www.usensys.org
+url: https://github.com/usensys/usensys/
 template:
   bootstrap: 5
   light-switch: true
@@ -17,6 +17,8 @@ template:
       </script>
 # navbar:
 #   bg: primary
+
+# <link rel="icon" href="docs/favicon.ico" />
 
 # development:
 #   version_label: info
@@ -51,7 +53,12 @@ navbar:
       # href: articles/IPMX.html
     - text: —ReEDS
       # href: articles/ReEDS.html
-   
+    - text: Projects
+    - text: —MIP
+      # href: articles/mip.html
+    - text: —Pilot
+      # href: articles/pilot.html
+
 footer:
   structure:
     left: package
