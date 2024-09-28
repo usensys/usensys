@@ -19,7 +19,7 @@
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="United States ENergy SYStem optimization model (USENSYS)">
 <meta name="description" content="R interface to the open source United States ENergy SYStem (USENSYS) optimization model with alternative regional configuration, technological options, and data sources. The package provides functions to choose the model configuration and the data from the list of available options, design technologies, processes, policies, and define scenarios, run the model, store and analyze the results. The model is based on the energyRt package and uses Python/Pyomo or Julia/JuMP or GAMS as the optimization solver.">
 <meta property="og:description" content="R interface to the open source United States ENergy SYStem (USENSYS) optimization model with alternative regional configuration, technological options, and data sources. The package provides functions to choose the model configuration and the data from the list of available options, design technologies, processes, policies, and define scenarios, run the model, store and analyze the results. The model is based on the energyRt package and uses Python/Pyomo or Julia/JuMP or GAMS as the optimization solver.">
-<meta property="og:image" content="www.usensys.org/logo.svg">
+<meta property="og:image" content="https://github.com/usensys/usensys/logo.svg">
 <!-- Google tag (gtag.js) --><script async src="https://www.googletagmanager.com/gtag/js?id=G-WYZJC3B8W9"></script><script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -57,6 +57,9 @@
     <li><h6 class="dropdown-header" data-toc-skip>—IPM</h6></li>
     <li><h6 class="dropdown-header" data-toc-skip>—IPMX</h6></li>
     <li><h6 class="dropdown-header" data-toc-skip>—ReEDS</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Projects</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—MIP</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—Pilot</h6></li>
   </ul>
 </li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
@@ -65,7 +68,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/usensys/usensys/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="nav-link" href="https://github.com/usensys/usensys/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-lightswitch" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true" aria-label="Light switch"><span class="fa fa-sun"></span></button>
   <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdown-lightswitch">
@@ -97,9 +100,8 @@ The expected release date of the first minimal <em>beta</em>-version is 2024-09-
 Docs in progress: <a href="https://usensys.github.io/usensys/" class="external-link uri">https://usensys.github.io/usensys/</a></p>
 </blockquote>
 </div>
-<p><strong>USENSYS</strong> is a linear programming optimization model for the United States energy system. It belongs to a class of models known as <strong>Macro Energy Models</strong>, also called <strong>Reference Energy System Models</strong> or <strong>Capacity Expansion Models</strong> (particularly in the context of the electric power sector). USENSYS optimizes the long-term development of the energy system, considering various technologies, resources, and policy options. Its primary objective is to determine the optimal capacity expansion of technologies while accounting for the current state of the system, resource, and policy constraints.</p>
-<p>The <strong>usensys</strong> package provides an R interface for this model, offering functions to either design new versions of the model or utilize a pre-configured one. It enables users to set up inputs for scenarios, run simulations, and analyze outcomes. This framework can be particularly useful for <strong>academic researchers</strong> and <strong>consultants</strong> specializing in energy systems and policy analysis. The R interface is especially beneficial for those familiar with R, as it integrates seamlessly with existing data analysis and visualization tools. [<em>Native Python and Julia interfaces with equivalent features are under consideration</em>.]</p>
-<p><strong>usensys</strong> package is an R-interface to the model with a set of functions to design the model or use ready to use version, set up the data, run the model, analyze the results with The model is designed to be used for policy analysis, scenario analysis, and long-term planning of the energy system. The model is based on the open-source R-package <a href="www.energyrt.org"><strong>energyRt</strong></a> and is designed to be used in combination with other R-packages for data analysis, visualization, and optimization.</p>
+<p><strong>USENSYS</strong> is a linear programming optimization model for the United States energy system. It belongs to a class of models known as <strong>Macro Energy Models</strong>, also called <strong>Reference Energy System Models</strong> or <strong>Capacity Expansion Models</strong> (particularly in the context of the electric power sector). USENSYS optimizes the long-term development of the energy system considering alternative technological options, available resources, and policy options. Its primary objective is to determine the cost-optimal capacity expansion of technological chains while accounting for the current state of the system, resource- and policy-constraints.</p>
+<p>The <strong>usensys</strong> package provides an R interface for this model, offering functions to either design new versions or utilize a pre-configured one. It enables users to set up inputs for scenarios, run simulations, and analyze outcomes. This framework can be particularly useful for <strong>academic researchers</strong> and <strong>consultants</strong> specializing in energy systems and policy analysis, who is familiar with R, as it integrates seamlessly with existing data analysis and visualization tools. [<em>Native Python and Julia interfaces with equivalent features are under consideration</em>.]</p>
 <div class="section level3">
 <h3 id="motivation">Motivation<a class="anchor" aria-label="anchor" href="#motivation"></a>
 </h3>
@@ -172,8 +174,8 @@ Docs in progress: <a href="https://usensys.github.io/usensys/" class="external-l
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/usensys/usensys/" class="external-link">Browse source code</a></li>
-<li><a href="https://github.com/usensys/usensys/issues" class="external-link">Report a bug</a></li>
+<li><a href="https://github.com/usensys/usensys/">Browse source code</a></li>
+<li><a href="https://github.com/usensys/usensys/issues">Report a bug</a></li>
 </ul>
 </div>
 

@@ -28,29 +28,21 @@ States energy system. It belongs to a class of models known as **Macro
 Energy Models**, also called **Reference Energy System Models** or
 **Capacity Expansion Models** (particularly in the context of the
 electric power sector). USENSYS optimizes the long-term development of
-the energy system, considering various technologies, resources, and
-policy options. Its primary objective is to determine the optimal
-capacity expansion of technologies while accounting for the current
-state of the system, resource, and policy constraints.
+the energy system considering alternative technological options,
+available resources, and policy options. Its primary objective is to
+determine the cost-optimal capacity expansion of technological chains
+while accounting for the current state of the system, resource- and
+policy-constraints.
 
 The **usensys** package provides an R interface for this model, offering
-functions to either design new versions of the model or utilize a
-pre-configured one. It enables users to set up inputs for scenarios, run
-simulations, and analyze outcomes. This framework can be particularly
-useful for **academic researchers** and **consultants** specializing in
-energy systems and policy analysis. The R interface is especially
-beneficial for those familiar with R, as it integrates seamlessly with
-existing data analysis and visualization tools. \[*Native Python and
-Julia interfaces with equivalent features are under consideration*.\]
-
-**usensys** package is an R-interface to the model with a set of
-functions to design the model or use ready to use version, set up the
-data, run the model, analyze the results with The model is designed to
-be used for policy analysis, scenario analysis, and long-term planning
-of the energy system. The model is based on the open-source R-package
-[**energyRt**](www.energyrt.org) and is designed to be used in
-combination with other R-packages for data analysis, visualization, and
-optimization.
+functions to either design new versions or utilize a pre-configured one.
+It enables users to set up inputs for scenarios, run simulations, and
+analyze outcomes. This framework can be particularly useful for
+**academic researchers** and **consultants** specializing in energy
+systems and policy analysis, who is familiar with R, as it integrates
+seamlessly with existing data analysis and visualization tools.
+\[*Native Python and Julia interfaces with equivalent features are under
+consideration*.\]
 
 ### Motivation
 
