@@ -27,3 +27,5 @@ Depends:
     sf
 Config/Needs/website: rmarkdown
 LazyData: true
+Imports: 
+    ggplot2

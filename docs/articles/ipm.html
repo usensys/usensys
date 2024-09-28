@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>US 26-zones • usensys</title>
+<title>ipm • usensys</title>
 <!-- favicons --><link rel="icon" type="image/png" sizes="16x16" href="../favicon-16x16.png">
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
 <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="../apple-touch-icon.png">
@@ -16,7 +16,7 @@
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.4.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.4.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="US 26-zones">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="ipm">
 <!-- Google tag (gtag.js) --><script async src="https://www.googletagmanager.com/gtag/js?id=G-WYZJC3B8W9"></script><script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
@@ -43,15 +43,20 @@
       <ul class="navbar-nav me-auto">
 <li class="nav-item"><a class="nav-link" href="../articles/usensys.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
-<li class="active nav-item dropdown">
+<li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/data.html">Data sources and options</a></li>
-    <li><a class="dropdown-item" href="../articles/maps.html">Regions and Maps</a></li>
-    <li><a class="dropdown-item" href="../articles/projects.html">Projects</a></li>
-    <li><a class="dropdown-item" href="../articles/us26pg.html">US 26-zones</a></li>
+<li><a class="dropdown-item" href="../articles/data.html">Data Sources</a></li>
+    <li><a class="dropdown-item" href="../articles/maps.html">Maps</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Model versions</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—US26</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—US50</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—IPM</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—IPMX</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—ReEDS</h6></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -78,11 +83,11 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="../logo.svg" class="logo" alt=""><h1>US 26-zones</h1>
+      <img src="../logo.svg" class="logo" alt=""><h1>ipm</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/usensys/usensys/blob/HEAD/vignettes/articles/us26pg.Rmd" class="external-link"><code>vignettes/articles/us26pg.Rmd</code></a></small>
-      <div class="d-none name"><code>us26pg.Rmd</code></div>
+      <small class="dont-index">Source: <a href="https://github.com/usensys/usensys/blob/HEAD/vignettes/articles/IPM.Rmd" class="external-link"><code>vignettes/articles/IPM.Rmd</code></a></small>
+      <div class="d-none name"><code>IPM.Rmd</code></div>
     </div>
 
     
@@ -90,9 +95,9 @@
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://usensys.org" class="external-link">usensys</a></span><span class="op">)</span></span>
 <span><span class="co">#&gt; Loading required package: energyRt</span></span>
-<span><span class="co">#&gt; energyRt version: 0.50.1-beta (2024-09-25)</span></span>
+<span><span class="co">#&gt; energyRt version: 0.50.0-beta (2024-08-31)</span></span>
 <span><span class="co">#&gt; Loading required package: sf</span></span>
-<span><span class="co">#&gt; Linking to GEOS 3.12.1, GDAL 3.8.4, PROJ 9.3.1; sf_use_s2() is TRUE</span></span></code></pre></div>
+<span><span class="co">#&gt; Linking to GEOS 3.11.0, GDAL 3.5.3, PROJ 9.1.0; sf_use_s2() is TRUE</span></span></code></pre></div>
   </main>
 </div>
 

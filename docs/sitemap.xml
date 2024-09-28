@@ -1,15 +1,20 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>www.usensys.org/404.html</loc></url>
+<url><loc>www.usensys.org/LICENSE-text.html</loc></url>
+<url><loc>www.usensys.org/LICENSE.html</loc></url>
+<url><loc>www.usensys.org/articles/IPM.html</loc></url>
+<url><loc>www.usensys.org/articles/IPMX.html</loc></url>
+<url><loc>www.usensys.org/articles/ReEDS.html</loc></url>
+<url><loc>www.usensys.org/articles/US26.html</loc></url>
+<url><loc>www.usensys.org/articles/US50.html</loc></url>
 <url><loc>www.usensys.org/articles/data.html</loc></url>
 <url><loc>www.usensys.org/articles/index.html</loc></url>
 <url><loc>www.usensys.org/articles/maps.html</loc></url>
 <url><loc>www.usensys.org/articles/projects.html</loc></url>
-<url><loc>www.usensys.org/articles/us26pg.html</loc></url>
 <url><loc>www.usensys.org/articles/usensys.html</loc></url>
 <url><loc>www.usensys.org/authors.html</loc></url>
 <url><loc>www.usensys.org/index.html</loc></url>
-<url><loc>www.usensys.org/LICENSE-text.html</loc></url>
-<url><loc>www.usensys.org/LICENSE.html</loc></url>
+<url><loc>www.usensys.org/news/index.html</loc></url>
 <url><loc>www.usensys.org/reference/index.html</loc></url>
 <url><loc>www.usensys.org/reference/usensys_maps.html</loc></url>
 </urlset>

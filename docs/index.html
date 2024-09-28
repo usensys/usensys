@@ -49,12 +49,17 @@
 <li class="nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="articles/data.html">Data sources and options</a></li>
-    <li><a class="dropdown-item" href="articles/maps.html">Regions and Maps</a></li>
-    <li><a class="dropdown-item" href="articles/projects.html">Projects</a></li>
-    <li><a class="dropdown-item" href="articles/us26pg.html">US 26-zones</a></li>
+<li><a class="dropdown-item" href="articles/data.html">Data Sources</a></li>
+    <li><a class="dropdown-item" href="articles/maps.html">Maps</a></li>
+    <li><h6 class="dropdown-header" data-toc-skip>Model versions</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—US26</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—US50</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—IPM</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—IPMX</h6></li>
+    <li><h6 class="dropdown-header" data-toc-skip>—ReEDS</h6></li>
   </ul>
 </li>
+<li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
 <li class="nav-item"><form class="form-inline" role="search">
@@ -78,41 +83,72 @@
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
 <div class="page-header">
-<img src="logo.svg" class="logo" alt=""><h1 id="united-states-energy-system-optimization-model">
-<u>U</u>nited <u>S</u>tates <u>En</u>ergy <u>Sys</u>tem Optimization Model<a class="anchor" aria-label="anchor" href="#united-states-energy-system-optimization-model"></a>
+<img src="logo.svg" class="logo" alt=""><h1 id="united-states-energy-system-optimization-model-">
+<u>U</u>nited <u>S</u>tates <u>En</u>ergy <u>Sys</u>tem Optimization Model <a class="anchor" aria-label="anchor" href="#united-states-energy-system-optimization-model-"></a>
 </h1>
 </div>
+<!-- badges: start -->
+
+<!-- badges: end -->
 <div class="warn">
 <blockquote>
 <p><span class="emoji" data-emoji="warning">⚠️</span> <strong>This package is under development.</strong><br>
-The expected release date of the first minimal <em>beta</em>-version is 2024-09-30. Docs in progress: <a href="https://usensys.github.io/usensys/" class="external-link uri">https://usensys.github.io/usensys/</a></p>
+The expected release date of the first minimal <em>beta</em>-version is 2024-09-30.<br>
+Docs in progress: <a href="https://usensys.github.io/usensys/" class="external-link uri">https://usensys.github.io/usensys/</a></p>
 </blockquote>
 </div>
-<p><strong>USENSYS</strong> is a linear programming optimization model of the US energy system. This class of models is known as <strong>Macro Energy Models</strong> or <strong>Reference Energy System Models</strong> or <strong>Capacity Expansion Models</strong> (for electric power sector) optimize capacity expansion of alternative technologies under alternative resource and policy constraints and assumptions.<br><strong>usensys</strong> r-package is an R-interface to the model with a set of functions to run the model, analyze the results, and visualize the data. The model is designed to be used for policy analysis, scenario analysis, and long-term planning of the energy system. The model is based on the open-source R-package <strong>energyRt</strong> and is designed to be used in combination with other R-packages for data analysis, visualization, and optimization.</p>
-<!-- badges: start -->
-<!-- badges: end -->
+<p><strong>USENSYS</strong> is a linear programming optimization model for the United States energy system. It belongs to a class of models known as <strong>Macro Energy Models</strong>, also called <strong>Reference Energy System Models</strong> or <strong>Capacity Expansion Models</strong> (particularly in the context of the electric power sector). USENSYS optimizes the long-term development of the energy system, considering various technologies, resources, and policy options. Its primary objective is to determine the optimal capacity expansion of technologies while accounting for the current state of the system, resource, and policy constraints.</p>
+<p>The <strong>usensys</strong> package provides an R interface for this model, offering functions to either design new versions of the model or utilize a pre-configured one. It enables users to set up inputs for scenarios, run simulations, and analyze outcomes. This framework can be particularly useful for <strong>academic researchers</strong> and <strong>consultants</strong> specializing in energy systems and policy analysis. The R interface is especially beneficial for those familiar with R, as it integrates seamlessly with existing data analysis and visualization tools. [<em>Native Python and Julia interfaces with equivalent features are under consideration</em>.]</p>
+<p><strong>usensys</strong> package is an R-interface to the model with a set of functions to design the model or use ready to use version, set up the data, run the model, analyze the results with The model is designed to be used for policy analysis, scenario analysis, and long-term planning of the energy system. The model is based on the open-source R-package <a href="www.energyrt.org"><strong>energyRt</strong></a> and is designed to be used in combination with other R-packages for data analysis, visualization, and optimization.</p>
+<div class="section level3">
+<h3 id="motivation">Motivation<a class="anchor" aria-label="anchor" href="#motivation"></a>
+</h3>
+<p>The <strong>usensys</strong> project is driven by the following goals:<br>
+- A universal interface for a versatile, scalable modeling framework<br>
+- Open-source accessibility, free use, and development<br>
+- Transparency in modeling assumptions and results<br>
+- Community building to foster collaboration<br>
+- More and better research through collective efforts.</p>
+<p>As open-source models are increasingly becoming the standard and best practice in energy modeling, USENSYS aims to contribute to this trend by providing transparency and accessibility.</p>
+</div>
+<div class="section level2">
+<h2 id="features">Features<a class="anchor" aria-label="anchor" href="#features"></a>
+</h2>
+<p>As a Macro/Reference Energy System model, USENSYS can be used to simulate energy pathways by optimizing energy investments over multiple decades under various conditions. It enables scenario analysis involving different technological options, costs, policy measures, energy demand, economic structures, and other key assumptions.</p>
+<p>The package emphasizes flexibility in both data and model structure, adopting a modular approach that facilitates customization of data sources and model components. The model is built on the <strong>energyRt</strong> R-package, a model generator that includes a framework of approximately one hundred pre-built constraints, providing significant flexibility in designing technologies, sectors, and linkages. These constraints are activated based on model or scenario-specific data. Users can also add custom constraints via the R interface, allowing further adaptability. No operational research programming is required to run the suite of models.</p>
+</div>
 <div class="section level2">
 <h2 id="versions">Versions<a class="anchor" aria-label="anchor" href="#versions"></a>
 </h2>
-<p>Several versions of the model are available with different status of development, all will be included in the package. The versions differ in the geographical scope of the model and regional aggregation, the data sources, and/or replication of existing models by EPA, NREL, and others. The current coverage of economic sectors is currently focused on the electric power sector, but the model is designed to be extended to other sectors in the future. The following versions are currently in preparation for the release:</p>
-<ul>
-<li>
-<strong>26-zones</strong>: The model is based on 26 zones (NERC subscriptions) of the United States. This version has been a part of the Multimodel Intercomparison Project (MIP) and is based on the PowerGenome data.</li>
-<li>
-<strong>50-states</strong>: The model is based on the 50 states of the United States, including Alaska and Hawaii. The datasets are based on the EIA data and the NREL ATB. This regional division might be helpful for for integration with other sectors and for state-level policy analysis.</li>
-<li>
-<strong>IPM</strong>: The model is based on the IPM model by EPA. The datasets are based on the IPM data and the NREL ATB.</li>
-<li>
-<strong>IMMX</strong>: The model is an extension of the IPM model by EPA with added Mexican states.</li>
-<li>
-<strong>ReEDS</strong>: The model is a replica of ReEDS model by NREL with imported data from the ReEDS model repository.</li>
-</ul>
+<p>Several versions of USENSYS are available, each at different stages of development. All versions are included in the package and differ in their geographical scope, regional aggregation, data sources, or in some cases, replicate existing models developed by institutions like <strong>EPA</strong> and <strong>NREL</strong>. Currently, USENSYS focuses on the electric power sector, but future versions will extend to other economic sectors.</p>
+<p>The following versions are in preparation for release:<br>
+- <strong>26-zones</strong>: Divides the United States into 26 zones based on <strong>NERC</strong> sub-regions. This version is part of the Multimodel Intercomparison Project (MIP) and uses <strong>PowerGenome</strong> data.<br>
+- <strong>50-states</strong>: Covers all 50 U.S. states, including <strong>Alaska</strong> and <strong>Hawaii</strong>, with data from <strong>EIA</strong> and <strong>NREL ATB</strong>. This version facilitates integration with other sectors and supports state-level policy analysis.<br>
+- <strong>IPM</strong>: Based on the <strong>IPM model</strong> developed by <strong>EPA</strong>, with data sourced from <strong>IPM</strong> and <strong>NREL ATB</strong>. - <strong>IPMX</strong>: An extension of the IPM model that includes <strong>Mexican states</strong>.<br>
+- <strong>ReEDS</strong>: A replica of the <strong>ReEDS model</strong> by <strong>NREL</strong>, with data imported from the ReEDS repository.</p>
+</div>
+<div class="section level2">
+<h2 id="data-sources">Data sources<a class="anchor" aria-label="anchor" href="#data-sources"></a>
+</h2>
+<p>The data options include several datasets, <strong>EIA</strong>, <strong>NREL</strong>, <strong>IPM</strong>, <strong>ReEDS</strong>, <strong>MERRA2</strong>, also data assemblies/processing tools such as <strong>PUDL</strong> and <strong>PowerGenome</strong>. The package provides functions to load and preprocess these datasets, making it easier to set up scenarios and run simulations. The package is designed to be flexible, allowing users to incorporate their own data sources and customize the model to their needs.</p>
 </div>
 <div class="section level2">
 <h2 id="prerequisites">Prerequisites<a class="anchor" aria-label="anchor" href="#prerequisites"></a>
 </h2>
-<p>One of the following optimization software is required to run the model: - Julia with JuMP - Python with Pyomo - GAMS - GLPK/MathProg (for small problems only)</p>
-<p>Large problems require a commercial solver, such as CPLEX or Gurobi. Smoler models can be solved with open-source solvers, such as HiGSS, CBC, or GLPK.</p>
+<p>To run the USENSYS model, you need one of the following optimization software packages:<br>
+- <a href="https://julialang.org/" class="external-link">Julia</a> with <a href="https://jump.dev/" class="external-link">JuMP</a><br>
+- <a href="https://www.python.org/" class="external-link">Python</a> with <a href="https://www.pyomo.org/" class="external-link">Pyomo</a><br>
+- <a href="https://en.wikibooks.org/wiki/GLPK/GMPL_(MathProg)" class="external-link">GLPK</a> (with MathProg/CMPL – a subset of <a href="https://ampl.com/" class="external-link">AMPL</a>)<br>
+- <a href="https://www.gams.com/" class="external-link">GAMS</a></p>
+<p>The first three options are open-source and free, while <strong>GAMS</strong> is commercial software. Large problems typically require a commercial linear <em>solver</em>, such as <a href="https://en.wikipedia.org/wiki/CPLEX" class="external-link">CPLEX</a> or <a href="https://en.wikipedia.org/wiki/Gurobi_Optimizer" class="external-link">Gurobi</a>, connected to the optimization software. Smaller models can be solved with open-source solvers like <a href="https://highs.dev/" class="external-link">HiGHS</a>, <a href="https://coin-or.github.io/Cbc/intro.html" class="external-link">CBC</a>, or <a href="https://www.gnu.org/software/glpk/" class="external-link">GLPK</a>.</p>
+<p>The hardware requirements depend on the size of the model and the solver used:</p>
+<ul>
+<li>
+<strong>Small problems</strong>: Can be solved on a personal computer with 8 GB of RAM and a modern processor using solvers like <strong>HiGHS</strong> or <strong>CBC</strong>, usually within minutes.<br>
+</li>
+<li>
+<strong>Large problems</strong>: Such as those involving numerous zones, technologies, or time periods, may require a high-performance multicore computer or cloud service with 200 GB or more of RAM, with computation times ranging from hours to days.</li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
@@ -130,7 +166,7 @@ The expected release date of the first minimal <em>beta</em>-version is 2024-09-
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://usensys.org" class="external-link">usensys</a></span><span class="op">)</span></span>
 <span><span class="co">## basic example code</span></span></code></pre></div>
-<p><span class="emoji" data-emoji="construction">🚧</span> <strong>This document is under construction.</strong> <span class="emoji" data-emoji="construction">🚧</span></p>
+<p><span class="emoji" data-emoji="construction">🚧</span> <strong>This document is under construction.</strong></p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">
@@ -164,7 +200,14 @@ The expected release date of the first minimal <em>beta</em>-version is 2024-09-
 </ul>
 </div>
 
-
+<div class="dev-status">
+<h2 data-toc-skip>Dev status</h2>
+<ul class="list-unstyled">
+<li><a href="https://lifecycle.r-lib.org/articles/stages.html#experimental" class="external-link"><img src="https://img.shields.io/badge/lifecycle-experimental-orange.svg" alt="Lifecycle: experimental"></a></li>
+<li><a href="https://CRAN.R-project.org/package=usensys" class="external-link"><img src="https://www.r-pkg.org/badges/version/usensys" alt="CRAN status"></a></li>
+<li><a href="code_of_conduct.html"><img src="https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg" alt="Contributor Covenant"></a></li>
+</ul>
+</div>
 
   </aside>
 </div>

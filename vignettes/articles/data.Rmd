@@ -9,4 +9,4 @@ knitr::opts_chunk$set(
 )
 ```
 
-:construction: **This document is under construction.** :construction:
+:construction: **This document is under construction.** 

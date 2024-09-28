@@ -13,17 +13,23 @@ editor_options:
 # usethis::use_readme_rmd()
 # usethis::use_package("energyRt", type = "Depends", min_version = "0.50.0")
 # usethis::use_package("sf", type = "Depends")
+# usethis::use_package("ggplot2", type = "Imports")
 # usethis::use_data_raw()
 # usethis::use_article("data")
 # usethis::use_article("maps")
 # usethis::use_article("projects")
 # usethis::use_article("usensys")
-# usethis::use_article("us26pg")
+# usethis::use_article("us26")
+# usethis::use_article("us50")
+# usethis::use_article("ipm")
+# usethis::use_article("ipmx")
+# usethis::use_article("ReEDS")
 # usethis::use_tidy_contributing()
 # usethis::use_tidy_coc()
 # usethis::use_tidy_style()
 
-usethis::use_r("data")
+# usethis::use_r("data")
+
 
 ```
 
@@ -39,9 +45,11 @@ usethis::use_r("data")
 # pkgdown::template_navbar()
 # usethis::use_github(private = FALSE)
 # usethis::use_github_action("pkgdown")
-# pkgdown::build_site_github_pages()
+# usethis::use_news_md()
 
-pkgdown::build_site()
+pkgdown::build_site_github_pages() # cleanups and builds the site
+pkgdown::build_site() # builds the site and opens it in the browser
+pkgdown::preview_site() # opens the site in the browser
 ```
 
 ## Datasets

@@ -9,4 +9,6 @@
 #' }
 #' @examples
 #' plot(usensys_maps$us26_sf["region"])
+#' library(ggplot2)
+#' ggplot() + geom_sf(data = usensys_maps$us26_sf, aes(fill = region)) + theme_bw()
 "usensys_maps"

@@ -26,6 +26,32 @@ development:
   version_label: danger
   version_tooltip: "development version"
 
+navbar:
+  # bg: light
+  components:
+   articles:
+    text: Articles
+    menu:
+    - text: Data Sources
+      href: articles/data.html
+    - text: Maps
+      href: articles/maps.html
+    # - text: Help
+      # href: articles/help.html
+    # - text: Installation
+      # href: articles/install.html
+    - text: Model versions
+    - text: —US26
+      # href: articles/US26.html
+    - text: —US50
+      # href: articles/US50.html
+    - text: —IPM
+      # href: articles/IPM.html
+    - text: —IPMX
+      # href: articles/IPMX.html
+    - text: —ReEDS
+      # href: articles/ReEDS.html
+   
 footer:
   structure:
     left: package
