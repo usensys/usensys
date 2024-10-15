@@ -32,7 +32,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">usensys</a>
 
-    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Unreleased version">0.0.1.9000</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Unreleased version">0.0.2.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -96,8 +96,398 @@
     
     
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://usensys.org" class="external-link">usensys</a></span><span class="op">)</span></span></code></pre></div>
-  </main>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://tidyverse.tidyverse.org" class="external-link">tidyverse</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://usensys.github.io/usensys/;" class="external-link">usensys</a></span><span class="op">)</span></span>
+<span><span class="co"># set_scenarios_path()</span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/options.html" class="external-link">get_scenarios_path</a></span><span class="op">(</span><span class="op">)</span> <span class="co"># get the path to the scenarios</span></span>
+<span><span class="co">#&gt; [1] "scenarios/"</span></span>
+<span><span class="fu">set_default_solver</span><span class="op">(</span><span class="va">solver_options</span><span class="op">$</span><span class="va">julia_highs_barrier</span><span class="op">)</span> <span class="co"># for small-scale models</span></span>
+<span><span class="co"># CPLEX or Gurobi are recommended for large models</span></span>
+<span><span class="co"># set_default_solver(solver_options$julia_cplex_barrier) </span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/progress.html" class="external-link">set_progress_bar</a></span><span class="op">(</span><span class="op">)</span> <span class="co"># shoe progress bar for the long operations</span></span></code></pre></div>
+<p>Also make sure that Julia, Python, or GAMS are installed and the
+paths are set.</p>
+<div class="section level2">
+<h2 id="a-minimal-example">A minimal example<a class="anchor" aria-label="anchor" href="#a-minimal-example"></a>
+</h2>
+<p>The package currently includes an aggregated version of a 26-zone
+model developed for Model Intercomparison Project. Data for the original
+model will be published in separate repository. The simplified version
+has lower granularity but has the same structure.</p>
+<div class="section level3">
+<h3 id="load-data-for-the-26-zone-model">Load data for the 26-zone model<a class="anchor" aria-label="anchor" href="#load-data-for-the-26-zone-model"></a>
+</h3>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="fu">usensys</span><span class="fu">::</span><span class="va">us26min</span><span class="op">)</span> <span class="co"># the model elements with data</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="fu">usensys</span><span class="fu">::</span><span class="va">calendars</span><span class="op">)</span> <span class="co"># alternative calendars for the model</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="fu">usensys</span><span class="fu">::</span><span class="va">horizons</span><span class="op">)</span> <span class="co"># alternative horizons for the model</span></span></code></pre></div>
+<p>The list <code>us26min</code> contains repositories with different
+model elements. A complete model should have the following elements:</p>
+<ul>
+<li>declaration of commodities<br>
+</li>
+<li>declaration of primary supply<br>
+</li>
+<li>declaration of the final demand<br>
+</li>
+<li>declaration of the technological processes such as generators,
+storage<br>
+</li>
+</ul>
+<p>Optional elements are:</p>
+<ul>
+<li>declaration of interregional trade, such as transmission lines<br>
+</li>
+<li>declaration of international trade<br>
+</li>
+<li>declaration of ‘weather’ factors for variable resources<br>
+</li>
+<li>policy and other constraints, such as CO2 cap, capacity and
+retirement constraints, etc.<br>
+</li>
+</ul>
+</div>
+<div class="section level3">
+<h3 id="data">Data<a class="anchor" aria-label="anchor" href="#data"></a>
+</h3>
+<p>The data for the model including all technologies, capacity factors,
+commodities, supply and demand is stored in the respective classes of
+<code>energyRt</code>, grouped in different repositories, and stored in
+the package data. Here we use the <code>us26min</code> repository that
+contains the data for the 26-zone model. The following step shapes the
+model structure by combining the model elements into a single
+repository.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Combine model elements that are used in all scenarios in a "main" repository</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/attach.html" class="external-link">attach</a></span><span class="op">(</span><span class="va">us26min</span><span class="op">)</span> <span class="co"># attach the model elements to the environment </span></span>
+<span><span class="va">repo_main</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://energyRt.org/reference/newRepository.html" class="external-link">newRepository</a></span><span class="op">(</span></span>
+<span>  name <span class="op">=</span> <span class="st">"repo_main"</span>,</span>
+<span>  desc <span class="op">=</span> <span class="st">"US 26-zone minimal model for testing"</span>,</span>
+<span>  <span class="va">repo_comm</span>, <span class="co"># commodities</span></span>
+<span>  <span class="va">repo_sup</span>, <span class="co"># primary supply</span></span>
+<span>  <span class="va">repo_storage</span>, <span class="co"># storage with weekly cycle</span></span>
+<span>  <span class="co"># repo_storage_fy, # storage with full-year cycle</span></span>
+<span>  <span class="va">repo_chargelinks</span>, <span class="co"># charging and discharging capacity optimization for storage</span></span>
+<span>  <span class="va">repo_chargelinks_cn</span>, <span class="co"># sets charging capacity equal to discharging capacity</span></span>
+<span>  <span class="va">repo_weather</span>, <span class="co"># capacity factors for wind, solar, and hydro</span></span>
+<span>  <span class="va">repo_vre</span>, <span class="co"># variable renewable energy sources: wind, solar, hydro</span></span>
+<span>  <span class="va">repo_nuclear</span>, <span class="co"># nuclear generators</span></span>
+<span>  <span class="va">repo_hydroelectric</span>, <span class="co"># hydroelectric generators</span></span>
+<span>  <span class="va">repo_geothermal</span>, <span class="co"># geothermal generators</span></span>
+<span>  <span class="co"># thermal</span></span>
+<span>  <span class="va">repo_coal</span>, <span class="co"># coal generators</span></span>
+<span>  <span class="va">repo_naturalgas</span>, <span class="co"># natural gas generators</span></span>
+<span>  <span class="va">repo_other</span>, <span class="co"># other generators</span></span>
+<span>  <span class="va">repo_biomass</span>, <span class="co"># biomass generators</span></span>
+<span>  <span class="va">repo_hydrogen</span>, <span class="co"># hydrogen technologies</span></span>
+<span>  <span class="co"># trade</span></span>
+<span>  <span class="va">repo_trade</span>, <span class="co"># interregional transmission lines</span></span>
+<span>  <span class="co"># CO2CAP_US, # National CO2 cap </span></span>
+<span>  <span class="va">LOSTLOAD</span>, <span class="co"># Lost load penalty</span></span>
+<span>  <span class="va">DEMELC</span> <span class="co"># Load projections by zone and hour  </span></span>
+<span>  <span class="op">)</span> </span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/detach.html" class="external-link">detach</a></span><span class="op">(</span><span class="va">us26min</span><span class="op">)</span> <span class="co"># detach the model elements</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">repo_main</span><span class="op">)</span></span></code></pre></div>
+<p>Other model elements/objects can be added or replaced later to
+specify scenarios.</p>
+</div>
+<div class="section level3">
+<h3 id="model">Model<a class="anchor" aria-label="anchor" href="#model"></a>
+</h3>
+<p>Objects in the <code>repo_main</code> repository are used in all
+scenarios and stored in the created on the next step model object.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Declaration of the model</span></span>
+<span><span class="va">mod</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://energyRt.org/reference/newModel.html" class="external-link">newModel</a></span><span class="op">(</span></span>
+<span>  name <span class="op">=</span> <span class="st">"US26min"</span>, <span class="co"># name of the model</span></span>
+<span>  desc <span class="op">=</span> <span class="st">"US 26-zone minimal model for testing"</span>, <span class="co"># description</span></span>
+<span>  <span class="co"># Default configuration</span></span>
+<span>  region <span class="op">=</span> <span class="va">usensys_maps</span><span class="op">$</span><span class="va">us26_sf</span><span class="op">$</span><span class="va">region</span>, <span class="co"># names of all regions used in the model</span></span>
+<span>  discount <span class="op">=</span> <span class="fl">.02</span>, <span class="co"># discount rate</span></span>
+<span>  calendar <span class="op">=</span> <span class="va">calendars</span><span class="op">$</span><span class="va">calendar_52w</span>, <span class="co"># full calendar with 52 weeks </span></span>
+<span>  horizon <span class="op">=</span> <span class="va">horizons</span><span class="op">$</span><span class="va">horizon_2027_2050_by5</span>, <span class="co"># default model horizon </span></span>
+<span>  optimizeRetirement <span class="op">=</span> <span class="cn">FALSE</span>, <span class="co"># optimization of the retirement is disabled</span></span>
+<span>  <span class="co"># Data: add model elements used in all scenarios</span></span>
+<span>  data <span class="op">=</span> <span class="va">repo_main</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/rm.html" class="external-link">rm</a></span><span class="op">(</span><span class="va">repo_main</span><span class="op">)</span> <span class="co"># clean up</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="interpolation-and-solving-the-model">Interpolation and solving the model<a class="anchor" aria-label="anchor" href="#interpolation-and-solving-the-model"></a>
+</h3>
+<p>The model can be solved in one or four steps. <code>solve</code>
+function applied to the model object will complete all four steps. For
+large models it is recommended to split the process into four steps to
+monitor the progress and avoid the repetition of time-consuming steps
+such as the interpolation and solution.</p>
+<p>The time required to solve the model can vary widely. Beyond hardware
+factors (such as processor speed, number of cores, and RAM size and
+speed), the solver and algorithm choice play crucial roles. At the time
+of writing this vignette, there is a significant performance gap between
+commercial and open-source solvers. Commercial solvers are capable of
+solving the full model, including all hours and multi-year
+optimizations. Open-source solvers can be used to solve the model with
+sampled time-slices in a reasonable time frame.</p>
+<div class="section level4">
+<h4 id="solving-scenarios">Solving scenarios<a class="anchor" aria-label="anchor" href="#solving-scenarios"></a>
+</h4>
+<p>The example below demonstrates the process of solving the model in
+four steps for two scenarios. <em>Reference</em> (<strong>REF</strong>)
+scenario assumes no policy intervention, while the <em>Carbon Cap</em>
+(<strong>CAP</strong>) scenario includes a CO2 cap. For a testing
+purpose, the model is solved for a subset of just a few time-slices but
+full horizon. Such sampled model can be solved using open-source solvers
+HiGHS, CBC, or GLPK.</p>
+<div class="section level5">
+<h5 id="interpolation-of-the-modelscenario-parameters">1. Interpolation of the model/scenario parameters<a class="anchor" aria-label="anchor" href="#interpolation-of-the-modelscenario-parameters"></a>
+</h5>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">scen_REF_test</span> <span class="op">&lt;-</span> <span class="fu">interpolate</span><span class="op">(</span></span>
+<span>  <span class="va">mod</span>, <span class="co"># model object</span></span>
+<span>  name <span class="op">=</span> <span class="st">"REF_test"</span>, <span class="co"># name of the scenario</span></span>
+<span>  desc <span class="op">=</span> <span class="st">"Test REF scenario on 4-days 6-hours data"</span>, <span class="co"># description</span></span>
+<span>  calendar <span class="op">=</span> <span class="va">calendars</span><span class="op">$</span><span class="va">calendar_4d_6h</span> <span class="co"># replace default calendar</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">scen_REF_test</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">scen_CAP_test</span> <span class="op">&lt;-</span> <span class="fu">interpolate</span><span class="op">(</span></span>
+<span>  <span class="va">mod</span>, <span class="co"># model object</span></span>
+<span>  name <span class="op">=</span> <span class="st">"CAP_test"</span>, <span class="co"># name of the scenario</span></span>
+<span>  desc <span class="op">=</span> <span class="st">"Test CAP scenario on 4-days 6-hours data"</span>, <span class="co"># description</span></span>
+<span>  <span class="va">CO2CAP_US</span>, <span class="co"># add CO2 cap</span></span>
+<span>  calendar <span class="op">=</span> <span class="va">calendars</span><span class="op">$</span><span class="va">calendar_4d_6h</span> <span class="co"># subset calendar</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level5">
+<h5 id="writing-the-model-script-and-scenario-data">2. Writing the model script and scenario data<a class="anchor" aria-label="anchor" href="#writing-the-model-script-and-scenario-data"></a>
+</h5>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">scen_REF_test</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://energyRt.org/reference/write.html" class="external-link">write_sc</a></span><span class="op">(</span></span>
+<span>  <span class="va">scen_REF_test</span>, <span class="co"># interpolated scenario</span></span>
+<span>  solver <span class="op">=</span> <span class="va">solver_options</span><span class="op">$</span><span class="va">julia_highs_barrier</span> <span class="co"># (optional) replaces the default solver</span></span>
+<span><span class="op">)</span> </span>
+<span><span class="va">scen_CAP_test</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://energyRt.org/reference/write.html" class="external-link">write_sc</a></span><span class="op">(</span></span>
+<span>  <span class="va">scen_CAP_test</span>,</span>
+<span>  solver <span class="op">=</span> <span class="va">solver_options</span><span class="op">$</span><span class="va">julia_highs_barrier</span> <span class="co"># replace the default solver</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level5">
+<h5 id="solving-the-modelscenario">3. Solving the model/scenario<a class="anchor" aria-label="anchor" href="#solving-the-modelscenario"></a>
+</h5>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">scen_REF_test</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/solve.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">scen_REF_test</span>, wait <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> </span>
+<span><span class="va">scen_CAP_test</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/solve.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">scen_CAP_test</span>, wait <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> </span>
+<span><span class="co"># use wait = TRUE to run scenarios sequentially</span></span></code></pre></div>
+</div>
+<div class="section level5">
+<h5 id="reading-the-results">4. Reading the results<a class="anchor" aria-label="anchor" href="#reading-the-results"></a>
+</h5>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">scen_REF_test</span> <span class="op">&lt;-</span> <span class="fu">read</span><span class="op">(</span><span class="va">scen_REF_test</span><span class="op">)</span></span>
+<span><span class="va">scen_CAP_test</span> <span class="op">&lt;-</span> <span class="fu">read</span><span class="op">(</span><span class="va">scen_CAP_test</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">scen_REF_test</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">scen_CAP_test</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level4">
+<h4 id="quick-look-at-the-results">Quick look at the results<a class="anchor" aria-label="anchor" href="#quick-look-at-the-results"></a>
+</h4>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Store solved scenarios in a list</span></span>
+<span><span class="va">sns</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">scen_REF_test</span>, <span class="va">scen_CAP_test</span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Objective values</span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/getData.html" class="external-link">getData</a></span><span class="op">(</span><span class="va">sns</span>, <span class="st">"vObjective"</span>, merge <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 3</span></span></span>
+<span><span class="co">#&gt;   scenario name         value</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>        <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> REF_test vObjective 8.68<span style="color: #949494;">e</span>11</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> CAP_test vObjective 1.20<span style="color: #949494;">e</span>12</span></span>
+<span></span>
+<span><span class="co">## New capacity</span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/getData.html" class="external-link">getData</a></span><span class="op">(</span><span class="va">sns</span>, <span class="st">"vTechNewCap"</span>, merge <span class="op">=</span> <span class="cn">TRUE</span>, digits <span class="op">=</span> <span class="fl">1</span>, process <span class="op">=</span> <span class="cn">T</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="co"># filter out charger capacity (equal to the dis-chargers)</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/filter.html" class="external-link">filter</a></span><span class="op">(</span><span class="op">!</span><span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">grepl</a></span><span class="op">(</span><span class="st">"_discharger"</span>, <span class="va">process</span><span class="op">)</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="co"># remove cluster and group identifiers from the process names</span></span>
+<span>  <span class="co"># (this process will be automated in the future versions of the package)</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>process <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">"_(C|CL|FG)[0-9]+"</span>, <span class="st">""</span>, <span class="va">process</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="co"># remove "charger" from the process names</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>process <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">"_charger"</span>, <span class="st">""</span>, <span class="va">process</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>process <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/grep.html" class="external-link">gsub</a></span><span class="op">(</span><span class="st">"_(C|CL|FG)[0-9]+"</span>, <span class="st">""</span>, <span class="va">process</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_by.html" class="external-link">group_by</a></span><span class="op">(</span><span class="va">scenario</span>, <span class="va">process</span>, <span class="va">year</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarise</a></span><span class="op">(</span>GW <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">value</span><span class="op">)</span><span class="op">/</span><span class="fl">1e3</span>, .groups <span class="op">=</span> <span class="st">"drop"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html" class="external-link">geom_bar</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">year</span><span class="op">)</span>, y <span class="op">=</span> <span class="va">GW</span>, fill <span class="op">=</span> <span class="va">process</span><span class="op">)</span>, </span>
+<span>           stat <span class="op">=</span> <span class="st">"identity"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_grid.html" class="external-link">facet_grid</a></span><span class="op">(</span><span class="va">.</span> <span class="op">~</span> <span class="va">scenario</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/scale_viridis.html" class="external-link">scale_fill_viridis_d</a></span><span class="op">(</span>option <span class="op">=</span> <span class="st">"H"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">""</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<div class="figure">
+<img src="usensys_files/figure-html/unnamed-chunk-11-1.png" alt="New capacity, GW" width="2187.5"><p class="caption">
+New capacity, GW
+</p>
+</div>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Carbon emissions</span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/getData.html" class="external-link">getData</a></span><span class="op">(</span><span class="va">sns</span>, <span class="st">"vBalance"</span>, comm <span class="op">=</span> <span class="st">"CO2"</span>, merge <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_by.html" class="external-link">group_by</a></span><span class="op">(</span><span class="va">scenario</span>, <span class="va">year</span><span class="op">)</span> <span class="op"><a href="https://magrittr.tidyverse.org/reference/pipe.html" class="external-link">%&gt;%</a></span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarise</a></span><span class="op">(</span>GtCO2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">value</span><span class="op">)</span><span class="op">/</span><span class="fl">1e6</span>, .groups <span class="op">=</span> <span class="st">"drop"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_path.html" class="external-link">geom_line</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">year</span>, y <span class="op">=</span> <span class="va">GtCO2</span>, color <span class="op">=</span> <span class="va">scenario</span><span class="op">)</span>, linewidth <span class="op">=</span> <span class="fl">1.5</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_point.html" class="external-link">geom_point</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">year</span>, y <span class="op">=</span> <span class="va">GtCO2</span>, color <span class="op">=</span> <span class="va">scenario</span><span class="op">)</span>, size <span class="op">=</span> <span class="fl">3</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="co"># scale_fill_viridis_d(option = "H") +</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/labs.html" class="external-link">labs</a></span><span class="op">(</span>x <span class="op">=</span> <span class="st">""</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggtheme.html" class="external-link">theme_bw</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<div class="figure">
+<img src="usensys_files/figure-html/unnamed-chunk-12-1.png" alt="Carbon emissions, GtCO2" width="2187.5"><p class="caption">
+Carbon emissions, GtCO2
+</p>
+</div>
+<p>The full list of variables and parameters is available in the <a href="https://energyrt.github.io/book/model.html#variables" class="external-link">energyRt
+documentation</a> which is in the progress.</p>
+<p>Scenario objects contain all the data about the model and the
+solution, including the model script, raw and interpolated inputs, and
+the results. See <code>slotNames(scen_REF_test)</code> and
+<code><a href="https://energyRt.org/reference/scenario-class.html" class="external-link">help('scenario-class')</a></code> for more details.</p>
+<p>Scenarios can be saved and loaded using the standard R functions
+<code>save</code> and <code>load</code>.</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Save scenarios</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></span><span class="op">(</span><span class="va">scen_REF_test</span>, file <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">scen_REF_test</span><span class="op">@</span><span class="va">path</span>, <span class="st">"scen_REF_test.RData"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/save.html" class="external-link">save</a></span><span class="op">(</span><span class="va">scen_CAP_test</span>, file <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/file.path.html" class="external-link">file.path</a></span><span class="op">(</span><span class="va">scen_CAP_test</span><span class="op">@</span><span class="va">path</span>, <span class="st">"scen_CAP_test.RData"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>For scenarios with large data, it is recommended to save them in an
+<code>arrow-parquet</code> format using the <code><a href="https://energyRt.org/reference/save_scenario.html" class="external-link">save_scenario()</a></code>
+function. By default it will save the scenario in the
+<code><a href="https://energyRt.org/reference/options.html" class="external-link">get_scenarios_path()</a></code> directory along with the model script
+and the results.</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">scen_REF_test</span><span class="op">@</span><span class="va">path</span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/save_scenario.html" class="external-link">save_scenario</a></span><span class="op">(</span><span class="va">scen_REF_test</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">scen_CAP_test</span><span class="op">@</span><span class="va">path</span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/save_scenario.html" class="external-link">save_scenario</a></span><span class="op">(</span><span class="va">scen_CAP_test</span><span class="op">)</span></span></code></pre></div>
+<p>Loading saved scenarios can be done using the
+<code><a href="https://energyRt.org/reference/load_scenario.html" class="external-link">load_scenario()</a></code> function pointing it to the directory with
+the saved scenario. The function returns a scenario object in a separate
+<code>.scen</code> environment. However instead of data, slots contain
+references to the data stored on disk.</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://energyRt.org/reference/load_scenario.html" class="external-link">load_scenario</a></span><span class="op">(</span><span class="st">"scenarios/REF_test_US26min_4d_6h_Y2027_2050_by5"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://energyRt.org/reference/load_scenario.html" class="external-link">load_scenario</a></span><span class="op">(</span><span class="st">"scenarios/CAP_test_US26min_4d_6h_Y2027_2050_by5"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/ls.html" class="external-link">ls</a></span><span class="op">(</span><span class="va">.scen</span><span class="op">)</span></span>
+<span><span class="va">sns</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="va">.scen</span><span class="op">$</span><span class="va">scen_REF_test</span>, <span class="va">.scen</span><span class="op">$</span><span class="va">scen_CAP_test</span><span class="op">)</span></span></code></pre></div>
+<p>The data can be accessed with the same functions as for the original
+scenario object</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://energyRt.org/reference/getData.html" class="external-link">getData</a></span><span class="op">(</span><span class="va">sns</span>, <span class="st">"vTradeNewCap"</span>, merge <span class="op">=</span> <span class="cn">TRUE</span>, digits <span class="op">=</span> <span class="fl">0</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_by.html" class="external-link">group_by</a></span><span class="op">(</span><span class="va">scenario</span>, <span class="va">trade</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/summarise.html" class="external-link">summarise</a></span><span class="op">(</span>GW <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">value</span><span class="op">)</span><span class="op">/</span><span class="fl">1e3</span>, .groups <span class="op">=</span> <span class="st">"drop"</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://tidyr.tidyverse.org/reference/pivot_wider.html" class="external-link">pivot_wider</a></span><span class="op">(</span>names_from <span class="op">=</span> <span class="va">scenario</span>, values_from <span class="op">=</span> <span class="va">GW</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/arrange.html" class="external-link">arrange</a></span><span class="op">(</span><span class="fu"><a href="https://dplyr.tidyverse.org/reference/desc.html" class="external-link">desc</a></span><span class="op">(</span><span class="va">CAP_test</span> <span class="op">+</span> <span class="va">REF_test</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fl">10</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu">kableExtra</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span>caption <span class="op">=</span> <span class="st">"Table. Transmission, new capacity, GW"</span><span class="op">)</span></span></code></pre></div>
+<table class="table">
+<caption>Table. Transmission, new capacity, GW</caption>
+<thead><tr class="header">
+<th align="left">trade</th>
+<th align="right">CAP_test</th>
+<th align="right">REF_test</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left">PJMD_to_PJME</td>
+<td align="right">29.769</td>
+<td align="right">0.070</td>
+</tr>
+<tr class="even">
+<td align="left">MISS_to_SPPS</td>
+<td align="right">20.372</td>
+<td align="right">3.916</td>
+</tr>
+<tr class="odd">
+<td align="left">ISNE_to_NYUP</td>
+<td align="right">24.174</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td align="left">NYUP_to_PJME</td>
+<td align="right">18.047</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="odd">
+<td align="left">PJME_to_PJMW</td>
+<td align="right">16.465</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td align="left">MISS_to_SPPC</td>
+<td align="right">13.407</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="odd">
+<td align="left">SRCA_to_SRSE</td>
+<td align="right">12.199</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td align="left">SPPC_to_SPPN</td>
+<td align="right">4.667</td>
+<td align="right">7.086</td>
+</tr>
+<tr class="odd">
+<td align="left">PJMC_to_PJMW</td>
+<td align="right">10.632</td>
+<td align="right">0.000</td>
+</tr>
+<tr class="even">
+<td align="left">PJMD_to_SRCA</td>
+<td align="right">10.402</td>
+<td align="right">0.000</td>
+</tr>
+</tbody>
+</table>
+<p>While a sampled model does not fully capture the variability in load
+and weather-driven capacity factors of renewable energy sources, it is
+useful for testing purposes. It allows for comparing the performance of
+different solvers, as well as experimenting with various time-slice
+configurations. This approach offers a fast way to test models or
+scenarios on consumer-grade desktops or laptops before performing
+large-scale optimizations on high-performance workstations or in the
+cloud.</p>
+<p>The choice of time-slices (weeks, hours) to be included or omitted in
+a scenario is arbitrary in this example. There are several alternative
+subset calendars available in the package (<code>data(calendars)</code>)
+with alternative selections of time-slices
+(<code>names(calendars)</code>):</p>
+<ul>
+<li>
+<code>calendar_52w</code> is the full calendar of the model with 52
+weeks and 168 hours per week, 8736 hours per year in total</li>
+<li>
+<code>calendar_4w</code> - subset of 4 weeks, 168 hours per week,
+672 hours per year in total</li>
+<li>
+<code>calendar_12d</code> - 12 days, 24 hours per day where every
+day is from a different month, 288 hours per year in total</li>
+<li>
+<code>calendar_4d_6h</code> - a reduced version of
+<code>calendar_4w</code> with 4 days and 6 hours per day, 24 hours per
+year in total.</li>
+</ul>
+<p>Calendars with custom selections of time-slices can be created using
+the <code>subset_calendar()</code> function.</p>
+</div>
+</div>
+<div class="section level3">
+<h3 id="solving-52-week-model">Solving 52-week model<a class="anchor" aria-label="anchor" href="#solving-52-week-model"></a>
+</h3>
+<p>tbc…</p>
+</div>
+</div>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+    </nav></aside>
 </div>
 
 
