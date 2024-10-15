@@ -1,0 +1,68 @@
+---
+title: "US 26-zone minimal model for testing"
+subtitle: "A reproduction of MIP-project model with aggregated resources"
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup, warning=FALSE, message=FALSE}
+library(usensys)
+```
+
+```{r, include=FALSE}
+# Load PowerGenome data
+# 52-week hourly data for 26 zones
+# CO2-cap, "base" scenario
+data_dir <- "Z:/MIP/20240515/base_52_week"
+
+```
+
+## Model characteristics
+
+The model is based on the 26-zone model from the [Multi-model
+intercomparison project](link). The dataset is prepared by the
+PowerGenome and Zero Lab teams. It includes 52 weeks of hourly data for
+26 zones. Since the goal of the MIP project is to compare different
+models, the model setting has a most basic, most common for capacity
+expansion models features to simplify the comparative process across
+models. Here are the main characteristics of the MIP model:
+
+-   26 zones\
+-   52 weeks with hourly resolution\
+-   2027 - 2050 time horizon, 2027 as the base year, milestones every 5
+    years starting from 2030\
+-   clustered generation technologies and variable capacity factors for
+    wind and solar generators\
+-   NREL's Energy Technology Perspectives (ETP) projections of
+    technologies and costs (included in PowerGenome), median scenario is
+    used for the project\
+-   age-based retirement assumptions of existing capacity, early
+    retirement is allowed in some scenarios\
+-   current policy constraints, renewable portfolio standards,
+    deployment plans for renewable energy sources, regional CO2 cap\
+-   national CO2 cap with rapid decline after 2030.
+
+Combinations of these features are used to create different scenarios
+for the project. The reproduction of the full model with all scenarios
+will be published in a separate repository. This document focuses on the
+minimal model with aggregated resources for demonstration and testing
+purposes.
+
+The key difference between the model used in MIP project and the
+"minimal" model currently available in the repository is in aggregation
+of resources with a goal to reduce the computational time and the size
+of the dataset. Variable capacity factors for wind and solar generators
+are clustered within zones based on correlation of time-series data. The
+clustering algorithm insures that the aggregated capacity factors are as
+close as possible to the original data with maximum loss of variability
+up to 5%. Thermal generation is also gropped by fuel type with averaging
+of technical and economic parameters.

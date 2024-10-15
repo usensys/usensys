@@ -8,10 +8,10 @@ articles:
   articles/maps: maps.html
   articles/projects: projects.html
   articles/ReEDS: ReEDS.html
-  articles/us26: us26.html
+  articles/us26min: us26min.html
   articles/us50: us50.html
   articles/usensys: usensys.html
-last_built: 2024-09-28T15:22Z
+last_built: 2024-10-15T00:53Z
 urls:
   reference: https://github.com/usensys/usensys/reference
   article: https://github.com/usensys/usensys/articles

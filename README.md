@@ -11,14 +11,18 @@ experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](h
 status](https://www.r-pkg.org/badges/version/usensys)](https://CRAN.R-project.org/package=usensys)
 [![Contributor
 Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md)
-
+[![CRAN
+status](https://www.r-pkg.org/badges/version/usensys)](https://CRAN.R-project.org/package=usensys)
+[![Lifecycle:
+experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
 <div class="warn">
 
 > :warning: **This package is under development.**  
-> The expected release date of the first minimal *beta*-version is
-> 2024-09-30.  
+> See [Get
+> started](https://usensys.github.io/usensys/articles/usensys.html) for
+> minimal working example.  
 > Docs in progress: <https://usensys.github.io/usensys/>
 
 </div>

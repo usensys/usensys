@@ -1,6 +1,5 @@
 # Documentation of the data objects in the package.
 
-
 #' GIS/map-objects for alternative versions of the model.
 #'
 #' @format A list of sf-objects:
@@ -8,7 +7,21 @@
 #'   \item{us26_sf}{26-region map}
 #' }
 #' @examples
+#' # Plot with base R
 #' plot(usensys_maps$us26_sf["region"])
+#'
+#' # Plot with ggplot2
 #' library(ggplot2)
-#' ggplot() + geom_sf(data = usensys_maps$us26_sf, aes(fill = region)) + theme_bw()
+#' ggplot(usensys_maps$us26_sf) +
+#' geom_sf(aes(fill = region), show.legend = F) +
+#' # geom_point(aes(x = centr_lon, y = centr_lat), color = "red", shape = 20) +
+#' geom_label(aes(x = centr_lon, y = centr_lat, label = region), size = 3) +
+#' scale_fill_viridis_d(option = "H") +
+#' labs(x = "", y = "") +
+#' theme_void()
 "usensys_maps"
+
+
+
+
+

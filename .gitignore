@@ -39,9 +39,11 @@ rsconnect/
 tmp
 archive
 
-*_files/
+#*_files/
 
 .Rproj.user
 
 .DS_Store
 */.DS_Store
+
+scenarios/*

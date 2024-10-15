@@ -7,14 +7,22 @@ editor_options:
 
 ## r package dev - log
 ```{r, eval = FALSE}
-# run once:
+# A log of package creation - do not run
+#### Package setup ####
 # usethis::create_package(getwd())
 # usethis::use_agpl3_license()
 # usethis::use_readme_rmd()
+# usethis::use_tidy_contributing()
+# usethis::use_tidy_coc()
+# usethis::use_tidy_style()
+
+#### Dependencies ####
 # usethis::use_package("energyRt", type = "Depends", min_version = "0.50.0")
 # usethis::use_package("sf", type = "Depends")
 # usethis::use_package("ggplot2", type = "Imports")
 # usethis::use_data_raw()
+
+#### Vignettes & Articles ####
 # usethis::use_article("data")
 # usethis::use_article("maps")
 # usethis::use_article("projects")
@@ -24,11 +32,10 @@ editor_options:
 # usethis::use_article("ipm")
 # usethis::use_article("ipmx")
 # usethis::use_article("ReEDS")
-# usethis::use_tidy_contributing()
-# usethis::use_tidy_coc()
-# usethis::use_tidy_style()
 
+#### Functions ####
 # usethis::use_r("data")
+
 
 
 ```
@@ -46,6 +53,8 @@ editor_options:
 # usethis::use_github(private = FALSE)
 # usethis::use_github_action("pkgdown")
 # usethis::use_news_md()
+# usethis::use_cran_badge()
+# usethis::use_lifecycle_badge("experimental")
 
 pkgdown::build_site_github_pages() # cleanups and builds the site
 pkgdown::build_site() # builds the site and opens it in the browser
@@ -55,8 +64,8 @@ pkgdown::preview_site() # opens the site in the browser
 ## Datasets
 ```{r, eval = FALSE}
 # maps ####
-# library(sf)
-# library(tidyverse)
+library(sf)
+library(tidyverse)
 # # mip_sf <- st_read(".../MIP/.../conus_26z_latlon_simple.geojson")
 # mip_sf |> st_is_valid() |> all()
 # 
@@ -72,8 +81,27 @@ pkgdown::preview_site() # opens the site in the browser
 #   rename(ipm_reg_agg = region, region = model_region)
 # 
 # plot(us26_sf)
+# us26_sf$region[us26_sf$region == "TRE_WEST"] <- "TREW"
+
+# centroids <- us26_sf |>
+#   st_centroid() |> 
+#   st_coordinates() |>
+#   as_tibble() |> 
+#   rename(centr_lon = X, centr_lat = Y) 
+# 
+# us26_sf <- us26_sf |> cbind(centroids)
 # save(us26_sf, file = "data-raw/us26_sf.RData")
 
+set.seed(123)
+us26_sf |>
+  mutate(region_shuffle = factor(region, levels = sample(region), ordered = T)) |>
+  ggplot() +
+  geom_sf(aes(fill = region_shuffle), show.legend = F) +
+  # geom_point(aes(x = centr_lon, y = centr_lat), color = "red", shape = 20) +
+  geom_label(aes(x = centr_lon, y = centr_lat, label = region), size = 2) +
+  scale_fill_viridis_d(option = "H") +
+  labs(x = "", y = "") +
+  theme_void()
 
 ```
 
