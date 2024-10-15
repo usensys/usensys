@@ -196,7 +196,7 @@ getData(sns, "vObjective", merge = TRUE)
 ```
 
 
-```{r, eval=TRUE, fig.cap="New capacity, GW"}
+```{r fig_cap, eval=TRUE, fig.cap="New capacity, GW"}
 # Objective values
 getData(sns, "vObjective", merge = TRUE)
 
@@ -221,7 +221,7 @@ getData(sns, "vTechNewCap", merge = TRUE, digits = 1, process = T) %>%
   theme_bw()
 ```
 
-```{r, eval=TRUE, fig.cap="Carbon emissions, GtCO2"}
+```{r fig_emis, eval=TRUE, fig.cap="Carbon emissions, GtCO2"}
 # Carbon emissions
 getData(sns, "vBalance", comm = "CO2", merge = TRUE) %>%
   group_by(scenario, year) %>%

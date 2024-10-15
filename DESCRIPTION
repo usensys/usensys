@@ -1,7 +1,7 @@
 Package: usensys
 Title: United States ENergy SYStem optimization model (USENSYS)
-Version: 0.0.2.9000
-Date: 2024-10-14
+Version: 0.0.2.9001
+Date: 2024-10-15
 Authors@R: 
     person("Oleg", "Lugovoy", 
           email = "usensys@optimalsolution.dev", 
@@ -15,7 +15,7 @@ Description: R interface to the open source United States ENergy SYStem (USENSYS
              run the model, store and analyze the results. The model is based on
              the energyRt package and uses Python/Pyomo or Julia/JuMP or GAMS as
              the optimization solver. 
-URL: https://usensys.github.io/usensys/; https://github.com/usensys/usensys
+URL: https://www.usensys.org; https://github.com/usensys/usensys
 BugReports: https://github.com/usensys/usensys/issues
 License: AGPL (>= 3)
 Encoding: UTF-8
