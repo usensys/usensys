@@ -11,6 +11,10 @@ knitr::opts_chunk$set(
 )
 ```
 
+## A minimal example
+The package currently includes a reduced version of a 26-zone model developed for Model Intercomparison Project. Data for the original model will be published in separate repository. The simplified version has lower granularity but the same structure.
+
+
 ```{r setup, eval = TRUE, message=FALSE, warning=FALSE}
 library(tidyverse)
 library(usensys)
@@ -22,11 +26,15 @@ set_default_solver(solver_options$julia_highs_barrier) # for small-scale models
 set_progress_bar() # shoe progress bar for the long operations
 ```
 Also make sure that Julia, Python, or GAMS are installed and the paths are set.
+```{r, eval=FALSE, include=FALSE}
+get_julia_path()
+# 
+set_julia_path("/Applications/Julia-1.10.app/Contents/Resources/julia/bin")
 
-## A minimal example
-The package currently includes an aggregated version of a 26-zone model developed for Model Intercomparison Project. Data for the original model will be published in separate repository. The simplified version has lower granularity but has the same structure. 
+```
 
-### Load data for the 26-zone model
+
+### 26-zone model
 ```{r, eval = FALSE}
 names(usensys::us26min) # the model elements with data
 names(usensys::calendars) # alternative calendars for the model
@@ -124,7 +132,7 @@ scen_CAP_test <- interpolate(
   mod, # model object
   name = "CAP_test", # name of the scenario
   desc = "Test CAP scenario on 4-days 6-hours data", # description
-  CO2CAP_US, # add CO2 cap
+  us26min$CO2CAP_US, # add CO2 cap
   calendar = calendars$calendar_4d_6h # subset calendar
 )
 
@@ -144,9 +152,9 @@ scen_CAP_test <- write_sc(
 
 ##### 3. Solving the model/scenario
 ```{r, eval=FALSE}
-scen_REF_test <- solve(scen_REF_test, wait = FALSE) 
-scen_CAP_test <- solve(scen_CAP_test, wait = FALSE) 
-# use wait = TRUE to run scenarios sequentially
+scen_REF_test <- solve_scenario(scen_REF_test, wait = TRUE) 
+scen_CAP_test <- solve_scenario(scen_CAP_test, wait = TRUE) 
+# use wait = FALSE to run scenarios in parallel
 ```
 
 ##### 4. Reading the results
@@ -264,7 +272,8 @@ getData(sns, "vTradeNewCap", merge = TRUE, digits = 0) |>
   pivot_wider(names_from = scenario, values_from = GW) |>
   arrange(desc(CAP_test + REF_test)) |>
   head(10) |>
-  kableExtra::kable(caption = "Table. Transmission, new capacity, GW")
+  kableExtra::kable(caption = "Table. Transmission, new capacity, GW") |>
+  kableExtra::kable_styling(bootstrap_options = "striped", full_width = T)
 ```
 
 While a sampled model does not fully capture the variability in load and weather-driven capacity factors of renewable energy sources, it is useful for testing purposes. It allows for comparing the performance of different solvers, as well as experimenting with various time-slice configurations. This approach offers a fast way to test models or scenarios on consumer-grade desktops or laptops before performing large-scale optimizations on high-performance workstations or in the cloud.

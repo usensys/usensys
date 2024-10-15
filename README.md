@@ -13,15 +13,12 @@ status](https://www.r-pkg.org/badges/version/usensys)](https://CRAN.R-project.or
 Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md)
 [![CRAN
 status](https://www.r-pkg.org/badges/version/usensys)](https://CRAN.R-project.org/package=usensys)
-[![Lifecycle:
-experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
 <div class="warn">
 
 > :warning: **This package is under development.**  
-> See [Get
-> started](https://usensys.github.io/usensys/articles/usensys.html) for
+> See [Get started](https://www.usensys.org/articles/usensys.html) for a
 > minimal working example.  
 > Docs in progress: <https://usensys.github.io/usensys/>
 
@@ -64,10 +61,10 @@ providing transparency and accessibility.
 ## Features
 
 As a Macro/Reference Energy System model, USENSYS can be used to
-simulate energy pathways by optimizing energy investments over multiple
-decades under various conditions. It enables scenario analysis involving
-different technological options, costs, policy measures, energy demand,
-economic structures, and other key assumptions.
+simulate energy pathways by optimizing energy-related investments over
+multiple decades under various conditions. It enables scenario analysis
+involving different technological options, costs, policy measures,
+energy demand, economic structures, and other key assumptions.
 
 The package emphasizes flexibility in both data and model structure,
 adopting a modular approach that facilitates customization of data

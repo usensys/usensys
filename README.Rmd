@@ -21,12 +21,11 @@ knitr::opts_chunk$set(
 
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental) [![CRAN status](https://www.r-pkg.org/badges/version/usensys)](https://CRAN.R-project.org/package=usensys) [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-2.1-4baaaa.svg)](code_of_conduct.md)
 [![CRAN status](https://www.r-pkg.org/badges/version/usensys)](https://CRAN.R-project.org/package=usensys)
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
 ::: warn
 > :warning: **This package is under development.**\
-> See [Get started](https://usensys.github.io/usensys/articles/usensys.html) for minimal working example.\
+> See [Get started](https://www.usensys.org/articles/usensys.html) for a minimal working example.\
 > Docs in progress: <https://usensys.github.io/usensys/>
 :::
 
