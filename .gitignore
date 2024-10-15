@@ -39,7 +39,7 @@ rsconnect/
 tmp
 archive
 
-*_files/
+#*_files/
 
 .Rproj.user
 
